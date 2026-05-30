@@ -1,0 +1,134 @@
+import { useEffect, useMemo, useState } from 'react';
+import './NavBar.css';
+
+export function NavBar() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    function readStoredUser() {
+      const storedUser = localStorage.getItem('onegymUser');
+      setUser(storedUser ? JSON.parse(storedUser) : null);
+    }
+
+    readStoredUser();
+    window.addEventListener('storage', readStoredUser);
+    window.addEventListener('onegym-auth-change', readStoredUser);
+
+    return () => {
+      window.removeEventListener('storage', readStoredUser);
+      window.removeEventListener('onegym-auth-change', readStoredUser);
+    };
+  }, []);
+
+  const userInitials = useMemo(() => {
+    if (!user) {
+      return '';
+    }
+
+    const name = user.username || user.email || 'Member';
+    return name
+      .split(/[.\s_-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0].toUpperCase())
+      .join('');
+  }, [user]);
+
+  function handleLogout() {
+    localStorage.removeItem('onegymUser');
+    window.dispatchEvent(new Event('onegym-auth-change'));
+    setUser(null);
+    window.location.href = '/signin';
+  }
+
+  return (
+    <nav className="nav">
+      <div className="nav-inner">
+        <a className="nav-logo" href="/">OneGym</a>
+        <ul className="nav-links">
+          {/* Features Dropdown Item */}
+          <li className="nav-dropdown">
+            <a href="#" className="nav-dropdown-trigger">Features</a>
+            <div className="nav-dropdown-menu">
+              
+              {/* Column 1: Members */}
+              <div className="mega-col">
+                <h4>For Members</h4>
+                <p>Track your personal fitness journey in one place.</p>
+                <a href="member-dashboard" className="mega-item">
+                  <span>Fitness Dashboard</span>
+                  <small>Integrated workout tracking and biometric progress.</small>
+                </a>
+                <a href="#" className="mega-item">
+                  <span>AI Diet Plan</span>
+                  <small>Automated meal suggestions based on goals.</small>
+                </a>
+                <a href="/booking" className="mega-item">
+                  <span>Class Bookings</span>
+                  <small>Real-time class registration and PT scheduling.</small>
+                </a>
+              </div>
+
+              {/* Column 2: Trainers */}
+              <div className="mega-col">
+                <h4>For Trainers</h4>
+                <p>Digital tools to connect and manage your clients.</p>
+                <a href="#" className="mega-item">
+                  <span>Client Manager</span>
+                  <small>CRM-style interface to monitor client progress.</small>
+                </a>
+                <a href="#" className="mega-item">
+                  <span>Schedule Sync</span>
+                  <small>Manage your professional calendar seamlessly.</small>
+                </a>
+              </div>
+
+              {/* Column 3: Admins */}
+              <div className="mega-col">
+                <h4>For Admins</h4>
+                <p>Streamline facility management and insights.</p>
+                <a href="#" className="mega-item">
+                  <span>Operations Overview</span>
+                  <small>High level view of gym and business analytics.</small>
+                </a>
+                <a href="#" className="mega-item">
+                  <span>Payment Gateway</span>
+                  <small>Automated membership renewals and billing.</small>
+                </a>
+              </div>
+
+            </div>
+          </li>
+          
+          <li><a href="#">Support</a></li>
+          <li><a href="#">Resources</a></li>
+        </ul>
+        <a className="nav-pill" href="#">All articles</a>
+        {user ? (
+          <div className="profile-menu">
+            <button className="profile-trigger" type="button" aria-label="Open profile menu">
+              <span>{userInitials}</span>
+            </button>
+            <div className="profile-dropdown">
+              <div className="profile-summary">
+                <div className="profile-avatar">{userInitials}</div>
+                <div>
+                  <strong>{user.username || 'Member'}</strong>
+                  <small>{user.email}</small>
+                </div>
+              </div>
+              <a href="/member-dashboard">Dashboard</a>
+              <a href="/booking">Book Class</a>
+              <a href="#">Profile</a>
+              <a href="#">Settings</a>
+              <a href="#">Membership</a>
+              <button type="button" onClick={handleLogout}>Logout</button>
+            </div>
+          </div>
+        ) : (
+          <a className="btn btn-primary btn-sm" href="/signin">Sign In</a>
+        )}
+      </div>
+    </nav>
+  );
+}

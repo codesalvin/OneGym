@@ -1,0 +1,38 @@
+# Environment files
+.env
+**/.env
+.env.*
+**/.env.*
+
+# Dependencies
+node_modules/
+**/node_modules/
+.venv/
+**/.venv/
+venv/
+**/venv/
+
+# Build output
+dist/
+**/dist/
+build/
+**/build/
+
+# Python/Django generated files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# Logs and local artifacts
+*.log
+.DS_Store
+Thumbs.db
+OneGym/saves/
+temp.html
+
+# Safe environment templates
+!**/.env.example

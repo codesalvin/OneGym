@@ -1,0 +1,300 @@
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(247, 246, 242, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  display: flex; align-items: center; gap: 32px;
+  height: 58px; max-width: 1100px; margin: 0 auto; padding: 0 32px;
+}
+.nav-logo {
+  font-family: var(--serif); font-size: 20px; color: var(--dark);
+  text-decoration: none; margin-right: auto;
+}
+.nav-links {
+  display: flex; align-items: center; gap: 24px; list-style: none;
+}
+.nav-links > li > a {
+  font-size: 13px; color: var(--mid); text-decoration: none;
+  transition: color .2s;
+}
+.nav-links > li > a:hover { color: var(--dark); }
+
+/* --- THEME-MATCHED DROPDOWN SYSTEM --- */
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* Caret indicator using current text color */
+.nav-dropdown-trigger::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 0.2s;
+}
+
+.nav-dropdown:hover .nav-dropdown-trigger::after {
+  transform: rotate(-135deg) translateY(-1px);
+}
+
+/* Mega Menu Container matched to your light palette */
+.nav-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%); /* Centers perfectly under the trigger */
+  width: min(850px, calc(100vw - 64px));
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
+  padding: 24px;
+  display: none;
+  z-index: 120;
+}
+
+/* Hover behavior for desktop screens */
+@media (min-width: 769px) {
+  .nav-dropdown:hover .nav-dropdown-menu,
+  .nav-dropdown:focus-within .nav-dropdown-menu {
+    display: grid;
+    gap: 24px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Inside Columns Styling */
+.mega-col h4 {
+  color: var(--dark);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.mega-col > p {
+  font-size: 12px;
+  color: var(--mid);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.mega-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-decoration: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 2px;
+  transition: background-color .2s;
+}
+
+.mega-item span {
+  color: var(--dark);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mega-item small {
+  color: var(--mid);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+/* Theme Hover States */
+.mega-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.nav-pill {
+  background: var(--dark); color: var(--white);
+  padding: 4px 12px; border-radius: 20px; font-size: 12px;
+  text-decoration: none; transition: opacity .2s;
+}
+.nav-pill:hover { opacity: .8; }
+
+.nav .btn-primary {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  border-radius: 0;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.nav .btn-primary:hover {
+  background: #333333;
+  border-color: #333333;
+}
+
+.profile-menu {
+  position: relative;
+}
+
+.profile-trigger {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(26, 26, 26, 0.2);
+  border-radius: 50%;
+  background: #1a1a1a;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-trigger:hover {
+  background: #333333;
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 240px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.08);
+  display: none;
+  padding: 8px;
+  z-index: 130;
+}
+
+.profile-menu:hover .profile-dropdown,
+.profile-menu:focus-within .profile-dropdown {
+  display: block;
+}
+
+.profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  margin-bottom: 6px;
+}
+
+.profile-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex: 0 0 38px;
+}
+
+.profile-summary strong,
+.profile-summary small {
+  display: block;
+}
+
+.profile-summary strong {
+  color: var(--dark);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.profile-summary small {
+  color: var(--mid);
+  font-size: 11px;
+  line-height: 1.4;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-dropdown a,
+.profile-dropdown button {
+  width: 100%;
+  display: block;
+  background: transparent;
+  border: 0;
+  color: var(--dark);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 10px 12px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.profile-dropdown a:hover,
+.profile-dropdown button:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.profile-dropdown button {
+  color: #b91c1c;
+}
+
+/* --- MOBILE RESPONSIVE ADAPTATION --- */
+@media (max-width: 768px) {
+  .nav-inner {
+    padding: 0 16px;
+    gap: 16px;
+  }
+  
+  .nav-links {
+    gap: 16px;
+  }
+
+  /* Make dropdown relative in layout stack on mobile instead of hovering awkwardly */
+  .nav-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100vw - 32px);
+    grid-template-columns: 1fr !important;
+    max-height: 380px;
+    overflow-y: auto;
+    padding: 16px;
+    gap: 16px;
+  }
+  
+  .nav-dropdown:hover .nav-dropdown-menu {
+    display: block; /* Stack structural columns on mobile view */
+  }
+
+  .mega-col {
+    margin-bottom: 12px;
+  }
+  
+  .mega-col:last-child {
+    margin-bottom: 0;
+  }
+
+  .profile-dropdown {
+    right: -8px;
+    min-width: min(240px, calc(100vw - 32px));
+  }
+}
