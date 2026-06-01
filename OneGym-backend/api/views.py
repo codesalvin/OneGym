@@ -1,4 +1,5 @@
 from django.db import connection
+from django.db import transaction
 from django.contrib.auth.hashers import check_password, identify_hasher, make_password
 from django.conf import settings
 from django.core.mail import send_mail
@@ -22,6 +23,7 @@ from .serializers import (
     SignUpSerializer,
     SocialAuthSerializer,
     UserSerializer,
+    WorkoutCreateSerializer,
 )
 
 
@@ -207,6 +209,67 @@ def cancel_booking(request, booking_id):
         )
 
     return Response({'detail': 'Booking cancelled.'})
+
+
+@api_view(['POST'])
+def create_workout(request):
+    serializer = WorkoutCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [data['user_id']])
+        if not cursor.fetchone():
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    workout_date = data.get('workout_date') or timezone.now()
+    notes = data.get('notes') or None
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                '''
+                INSERT INTO workouts
+                    (user_id, name, duration_minutes, intensity, calories_burned, workout_date, notes, created_at)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s, %s, NOW(6))
+                ''',
+                [
+                    data['user_id'],
+                    data['name'],
+                    data['duration_minutes'],
+                    data['intensity'],
+                    data['calories_burned'],
+                    workout_date,
+                    notes,
+                ],
+            )
+            workout_id = cursor.lastrowid
+
+            for exercise in data['exercises']:
+                cursor.execute(
+                    '''
+                    INSERT INTO workout_exercises
+                        (workout_id, exercise_name, sets, reps, weight, created_at)
+                    VALUES
+                        (%s, %s, %s, %s, %s, NOW(6))
+                    ''',
+                    [
+                        workout_id,
+                        exercise['exercise_name'],
+                        exercise['sets'],
+                        exercise['reps'],
+                        exercise['weight'],
+                    ],
+                )
+
+    return Response(
+        {
+            'detail': 'Workout saved successfully.',
+            'workout_id': workout_id,
+        },
+        status=status.HTTP_201_CREATED,
+    )
 
 
 def password_matches(raw_password, stored_password):

@@ -197,7 +197,7 @@ export function BookingPage() {
       <main className="booking-page">
         <section className="booking-schedule">
           <Link className="booking-back" to="/member-dashboard" aria-label="Back to dashboard">
-            <span aria-hidden="true">←</span>
+            <span className="material-symbols-outlined" aria-hidden="true">arrow_back</span>
             Dashboard
           </Link>
 

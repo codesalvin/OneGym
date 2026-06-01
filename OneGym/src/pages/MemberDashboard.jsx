@@ -1,8 +1,19 @@
+import { useMemo } from 'react';
 import { NavBar } from '../components/NavBar';
 import { Footer } from '../components/Footer';
 import './MemberDashboard.css';
 
 export function MemberDashboardPage() {
+  const user = useMemo(() => {
+    try {
+      const storedUser = localStorage.getItem('onegymUser');
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+  const displayName = user?.username || user?.email?.split('@')[0] || 'Member';
+
   return (
     <>
       <NavBar />
@@ -17,7 +28,7 @@ export function MemberDashboardPage() {
               <span className="dot"></span>
               <span className="badge-text">Active Member</span>
             </div>
-            <h1 className="welcome-title">Welcome back, Alex.</h1>
+            <h1 className="welcome-title">Welcome back, {displayName}</h1>
             <p className="welcome-subtitle">Ready to pursue excellence in today's training session?</p>
           </div>
           <div className="action-buttons">
@@ -25,7 +36,7 @@ export function MemberDashboardPage() {
               <span className="material-symbols-outlined">fitness_center</span>
               Book Class
             </button>
-            <button className="btn btn-primary">
+            <button className="btn btn-primary" onClick={() => { window.location.href = '/log-workout'; }}>
               <span className="material-symbols-outlined">add</span>
               Log Workout
             </button>
