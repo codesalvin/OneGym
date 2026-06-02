@@ -59,7 +59,7 @@ export function NavBar() {
                   <span>Fitness Dashboard</span>
                   <small>Integrated workout tracking and biometric progress.</small>
                 </a>
-                <a href="#" className="mega-item">
+                <a href="/ai-assistant" className="mega-item">
                   <span>AI Diet Plan</span>
                   <small>Automated meal suggestions based on goals.</small>
                 </a>
@@ -119,6 +119,7 @@ export function NavBar() {
               </div>
               <a href="/member-dashboard">Dashboard</a>
               <a href="/booking">Book Class</a>
+              <a href="/ai-assistant">AI Assistant</a>
               <a href="#">Profile</a>
               <a href="#">Settings</a>
               <a href="#">Membership</a>

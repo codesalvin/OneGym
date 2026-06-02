@@ -76,6 +76,34 @@
   text-align: center;
 }
 
+.log-workout-tabs {
+  border: 1px solid #1a1a1a;
+  display: flex;
+  margin: 0 auto 56px;
+  width: fit-content;
+}
+
+.log-workout-tabs button {
+  background: #ffffff;
+  border: 0;
+  color: #1a1a1a;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  padding: 16px 24px;
+  text-transform: uppercase;
+}
+
+.log-workout-tabs button + button {
+  border-left: 1px solid #1a1a1a;
+}
+
+.log-workout-tabs button.active {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
 .log-workout-meta {
   border-bottom: 1px solid rgba(196, 199, 199, 0.65);
   border-top: 1px solid rgba(196, 199, 199, 0.65);
@@ -122,6 +150,16 @@
 
 .log-workout-field input::placeholder {
   color: rgba(26, 28, 28, 0.32);
+}
+
+.log-workout-field input[type="date"] {
+  color-scheme: light;
+  cursor: pointer;
+}
+
+.log-workout-field input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: grayscale(1);
 }
 
 .log-section-header {
@@ -235,6 +273,154 @@
   opacity: 0.65;
 }
 
+.training-history {
+  border-top: 1px solid rgba(196, 199, 199, 0.65);
+}
+
+.training-history-row {
+  align-items: center;
+  border-bottom: 1px solid rgba(196, 199, 199, 0.65);
+  display: grid;
+  gap: 32px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 32px 0;
+}
+
+.training-history-date {
+  color: #735c00;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.training-history-row h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 28px;
+  font-style: italic;
+  line-height: 1.2;
+  margin: 0 0 8px;
+}
+
+.training-history-row p {
+  color: #444748;
+  margin: 0;
+}
+
+.training-history-stats {
+  display: flex;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.training-history-stats span {
+  border: 1px solid rgba(196, 199, 199, 0.65);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 10px 12px;
+  text-transform: uppercase;
+}
+
+.training-history-delete {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #c91818;
+  cursor: pointer;
+  display: inline-flex;
+  height: 40px;
+  justify-content: center;
+  opacity: 0;
+  padding: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  width: 40px;
+}
+
+.training-history-row:hover .training-history-delete,
+.training-history-delete:focus-visible {
+  opacity: 1;
+}
+
+.training-history-delete:hover {
+  transform: translateY(-1px);
+}
+
+.training-history-delete span {
+  font-size: 22px;
+}
+
+.training-history-empty {
+  border-bottom: 1px solid rgba(196, 199, 199, 0.65);
+  color: #444748;
+  font-style: italic;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.workout-modal-backdrop {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.workout-modal {
+  background: #ffffff;
+  border: 1px solid #1a1a1a;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.18);
+  max-width: 460px;
+  padding: 34px;
+  width: min(100%, 460px);
+}
+
+.workout-modal h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 34px;
+  font-style: italic;
+  line-height: 1.1;
+  margin: 10px 0 14px;
+}
+
+.workout-modal p:not(.log-workout-eyebrow) {
+  color: #444748;
+  line-height: 1.6;
+}
+
+.workout-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 28px;
+}
+
+.workout-modal-actions button {
+  background: #1a1a1a;
+  border: 1px solid #1a1a1a;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 14px 18px;
+  text-transform: uppercase;
+}
+
+.workout-modal-actions button.ghost {
+  background: #ffffff;
+  color: #1a1a1a;
+}
+
+.workout-modal-actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 @keyframes logExerciseIn {
   from {
     opacity: 0;
@@ -275,5 +461,32 @@
   .log-workout-field.compact,
   .log-workout-field.compact input {
     text-align: left;
+  }
+
+  .log-workout-tabs,
+  .training-history-stats {
+    width: 100%;
+  }
+
+  .log-workout-tabs button,
+  .training-history-stats span {
+    flex: 1;
+    text-align: center;
+  }
+
+  .training-history-row {
+    grid-template-columns: 1fr;
+  }
+
+  .training-history-delete {
+    opacity: 1;
+  }
+
+  .training-history-stats {
+    flex-wrap: wrap;
+  }
+
+  .workout-modal-actions {
+    flex-direction: column-reverse;
   }
 }

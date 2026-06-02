@@ -460,6 +460,14 @@
   background-color: var(--color-surface);
 }
 
+.activity-empty {
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+  font-style: italic;
+  padding: 24px;
+  text-align: center;
+}
+
 /* Nutrition Section Styles */
 .nutrition-section {
   margin-top: var(--spacing-stack-lg);
@@ -1647,6 +1655,76 @@ body {
   color: currentColor;
 }
 
+.dashboard-modal-backdrop {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.dashboard-modal {
+  background: #ffffff;
+  border: 1px solid #1a1a1a;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.18);
+  max-width: 460px;
+  padding: 34px;
+  width: min(100%, 460px);
+}
+
+.dashboard-modal-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.dashboard-modal h2 {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-style: italic;
+  line-height: 1.1;
+  margin: 10px 0 14px;
+}
+
+.dashboard-modal p:not(.dashboard-modal-eyebrow) {
+  color: #444748;
+  line-height: 1.6;
+}
+
+.dashboard-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 28px;
+}
+
+.dashboard-modal-actions button {
+  background: #1a1a1a;
+  border: 1px solid #1a1a1a;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 14px 18px;
+  text-transform: uppercase;
+}
+
+.dashboard-modal-actions button.ghost {
+  background: #ffffff;
+  color: #1a1a1a;
+}
+
+.dashboard-modal-actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .table-val-cell {
   white-space: nowrap;
 }
@@ -1769,4 +1847,46 @@ body {
 
 .upload-label:hover {
   background-color: var(--color-surface-container-high);
+}
+
+.meal-log-message {
+  border: 1px solid rgba(21, 128, 61, 0.25);
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 18px;
+  padding: 12px;
+  text-transform: uppercase;
+}
+
+.meal-log-message.error {
+  border-color: rgba(185, 28, 28, 0.28);
+  color: #b91c1c;
+}
+
+.meal-macro-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.meal-macro-grid .input-group {
+  min-width: 0;
+}
+
+.meal-photo-preview {
+  height: 124px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.meal-analyze-button {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 560px) {
+  .meal-macro-grid {
+    grid-template-columns: 1fr;
+  }
 }

@@ -6,6 +6,7 @@ class UserSerializer(serializers.Serializer):
     username = serializers.CharField()
     email = serializers.EmailField()
     role = serializers.CharField()
+    created_at = serializers.DateTimeField()
 
 
 class FitnessClassSerializer(serializers.Serializer):
@@ -61,6 +62,41 @@ class WorkoutCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError('At least one exercise is required.')
 
         return value
+
+
+class WorkoutSummarySerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    duration_minutes = serializers.IntegerField()
+    intensity = serializers.CharField()
+    calories_burned = serializers.IntegerField()
+    workout_date = serializers.DateTimeField()
+    created_at = serializers.DateTimeField()
+    exercise_count = serializers.IntegerField()
+
+
+class MealCreateSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    meal_type = serializers.CharField(max_length=50, default='Meal')
+    description = serializers.CharField(max_length=255)
+    calories = serializers.IntegerField(min_value=0)
+    protein_g = serializers.DecimalField(max_digits=6, decimal_places=2, min_value=0, required=False, allow_null=True)
+    carbs_g = serializers.DecimalField(max_digits=6, decimal_places=2, min_value=0, required=False, allow_null=True)
+    fats_g = serializers.DecimalField(max_digits=6, decimal_places=2, min_value=0, required=False, allow_null=True)
+    photo_url = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+
+
+class MealSummarySerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    meal_type = serializers.CharField()
+    description = serializers.CharField()
+    calories = serializers.IntegerField()
+    protein_g = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True)
+    carbs_g = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True)
+    fats_g = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True)
+    photo_url = serializers.CharField(allow_blank=True, allow_null=True)
+    meal_date = serializers.DateTimeField()
+    created_at = serializers.DateTimeField()
 
 
 class SignUpSerializer(serializers.Serializer):

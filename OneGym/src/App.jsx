@@ -4,6 +4,7 @@ import { MemberDashboardPage } from './pages/MemberDashboard';
 import { SignInPage } from './pages/SignInPage';
 import { BookingPage } from './pages/Booking';
 import { LogWorkoutPage } from './pages/LogWorkout';
+import { AiAssistantPage } from './pages/AiAssistant';
 
 function App() {
 
@@ -14,6 +15,7 @@ function App() {
       <Route path="/member-dashboard" element={<MemberDashboardPage />} />
       <Route path="/booking" element={<BookingPage />} />
       <Route path="/log-workout" element={<LogWorkoutPage />} />
+      <Route path="/ai-assistant" element={<AiAssistantPage />} />
     </Routes>
   )
 }
