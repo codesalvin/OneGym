@@ -4,6 +4,11 @@ import { Footer } from '../components/Footer';
 import './MemberDashboard.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const CALORIE_GOAL = 2500;
+const PROTEIN_GOAL = 180;
+const CARBS_GOAL = 300;
+const FATS_GOAL = 65;
+const RING_CIRCUMFERENCE = 157;
 
 async function readApiResponse(response, requestUrl = response.url) {
   const text = await response.text();
@@ -32,6 +37,14 @@ function formatActivityTime(value) {
   }).format(new Date(value));
 }
 
+function formatDashboardDate(value = new Date()) {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(value).toUpperCase();
+}
+
 function formatIntensity(value) {
   const labels = {
     low: 'Gentle',
@@ -51,6 +64,23 @@ function getWorkoutId(workout) {
 function numberField(...values) {
   const value = values.find((item) => item !== undefined && item !== null && item !== '');
   return value === undefined ? '' : String(value);
+}
+
+function numericValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function clampPercent(value) {
+  return Math.min(100, Math.max(0, value));
+}
+
+function formatWholeNumber(value) {
+  return Math.round(value).toLocaleString('en-US');
+}
+
+function formatMacroValue(value) {
+  return `${formatWholeNumber(numericValue(value))}g`;
 }
 
 function resolveMediaUrl(url) {
@@ -74,19 +104,6 @@ const emptyMealForm = {
   fats: '',
 };
 
-const sampleMeals = [
-  {
-    id: 'sample-breakfast',
-    meal_type: 'Breakfast',
-    description: 'Steel cut oats with blueberries and whey',
-    calories: 450,
-    photo_url: 'https://lh3.googleusercontent.com/aida/ADBb0ugJxvBTzMxAIJ25FhWUNffMk-9r2MmrSnDCopdVzumpBuYeax7D7CTtHhMUlG8aNgFWQFzf6oGihISHri3axddCHtIHrDe3PcfnFAyme8wmETWT2Yk1D1mLqorwp3ZqNPElpA8dZYe3H9l9t74zsZSHRaZc8Kvc8CJogtThHBGMZ3ElsV2Jpk_-JjBB67QT1nug2eAJyGuwulqre1FEBH8HsM0whQ6Z6pnITciZwFMdytIaUJUl2QZQuo9Q',
-  },
-  { id: 'sample-lunch', meal_type: 'Lunch', description: 'Grilled chicken breast, quinoa, and avocado', calories: 680 },
-  { id: 'sample-dinner', meal_type: 'Dinner', description: 'Baked salmon with roasted asparagus', calories: 520 },
-  { id: 'sample-snacks', meal_type: 'Snacks', description: 'Handful of almonds & Greek yogurt', calories: 200 },
-];
-
 export function MemberDashboardPage() {
   const user = useMemo(() => {
     try {
@@ -100,8 +117,10 @@ export function MemberDashboardPage() {
   const [recentWorkouts, setRecentWorkouts] = useState([]);
   const [activityMessage, setActivityMessage] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [editingMeal, setEditingMeal] = useState(null);
   const [notice, setNotice] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSavingMealEdit, setIsSavingMealEdit] = useState(false);
   const [mealForm, setMealForm] = useState(emptyMealForm);
   const [mealPhoto, setMealPhoto] = useState(null);
   const [mealPhotoPreview, setMealPhotoPreview] = useState('');
@@ -110,7 +129,35 @@ export function MemberDashboardPage() {
   const [isAnalyzingMeal, setIsAnalyzingMeal] = useState(false);
   const [isSavingMeal, setIsSavingMeal] = useState(false);
   const [loggedMeals, setLoggedMeals] = useState([]);
-  const visibleMeals = loggedMeals.length ? loggedMeals : sampleMeals;
+  const nutritionDate = useMemo(() => formatDashboardDate(), []);
+  const nutritionTotals = useMemo(() => {
+    const consumed = loggedMeals.reduce(
+      (total, meal) => ({
+        calories: total.calories + numericValue(meal.calories),
+        protein: total.protein + numericValue(meal.protein_g),
+        carbs: total.carbs + numericValue(meal.carbs_g),
+        fats: total.fats + numericValue(meal.fats_g),
+      }),
+      {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fats: 0,
+      },
+    );
+
+    const caloriePercent = clampPercent((consumed.calories / CALORIE_GOAL) * 100);
+
+    return {
+      ...consumed,
+      remainingCalories: Math.max(0, CALORIE_GOAL - consumed.calories),
+      caloriePercent,
+      ringOffset: RING_CIRCUMFERENCE * (1 - caloriePercent / 100),
+      proteinPercent: clampPercent((consumed.protein / PROTEIN_GOAL) * 100),
+      carbsPercent: clampPercent((consumed.carbs / CARBS_GOAL) * 100),
+      fatsPercent: clampPercent((consumed.fats / FATS_GOAL) * 100),
+    };
+  }, [loggedMeals]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -172,6 +219,7 @@ export function MemberDashboardPage() {
     }
 
     setPendingDelete({
+      type: 'workout',
       id: workoutId,
       item: workout,
       title: 'Delete workout',
@@ -179,7 +227,118 @@ export function MemberDashboardPage() {
     });
   }
 
-  async function confirmDeleteRecentWorkout() {
+  function askToDeleteMeal(meal) {
+    const mealId = Number(meal?.id);
+    if (!Number.isInteger(mealId) || mealId <= 0) {
+      setIsMealError(true);
+      setMealMessage('This meal is missing its database id, so it cannot be deleted yet.');
+      return;
+    }
+
+    if (!user?.id) {
+      setIsMealError(true);
+      setMealMessage('Please sign in before deleting a meal.');
+      return;
+    }
+
+    setPendingDelete({
+      type: 'meal',
+      id: mealId,
+      item: meal,
+      title: 'Delete meal',
+      body: `Remove "${meal.description}" from today's meals? This cannot be undone.`,
+    });
+  }
+
+  function startMealEdit(meal) {
+    const mealId = Number(meal?.id);
+    if (!Number.isInteger(mealId) || mealId <= 0) {
+      setIsMealError(true);
+      setMealMessage('This meal is missing its database id, so it cannot be edited yet.');
+      return;
+    }
+
+    if (!user?.id) {
+      setIsMealError(true);
+      setMealMessage('Please sign in before editing a meal.');
+      return;
+    }
+
+    setEditingMeal({
+      id: mealId,
+      description: meal.description || 'Meal',
+      calories: numberField(meal.calories),
+      protein: numberField(meal.protein_g),
+      carbs: numberField(meal.carbs_g),
+      fats: numberField(meal.fats_g),
+    });
+  }
+
+  function updateMealEditField(event) {
+    const { name, value } = event.target;
+    setEditingMeal((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  }
+
+  async function saveMealEdit(event) {
+    event.preventDefault();
+
+    if (!editingMeal || !user?.id) {
+      return;
+    }
+
+    if (!editingMeal.description.trim() || editingMeal.calories === '') {
+      setIsMealError(true);
+      setMealMessage('Meal description and calories are required.');
+      setEditingMeal(null);
+      return;
+    }
+
+    setIsSavingMealEdit(true);
+
+    try {
+      const endpoint = `${API_BASE_URL}/meals/update/`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          meal_id: editingMeal.id,
+          description: editingMeal.description.trim(),
+          calories: Number(editingMeal.calories),
+          protein_g: Number(editingMeal.protein || 0),
+          carbs_g: Number(editingMeal.carbs || 0),
+          fats_g: Number(editingMeal.fats || 0),
+        }),
+      });
+      const data = await readApiResponse(response, endpoint);
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Unable to update meal.');
+      }
+
+      await loadMeals();
+      setEditingMeal(null);
+      setMealMessage('');
+      setIsMealError(false);
+      setNotice({
+        title: 'Meal updated',
+        body: data.detail || 'Meal nutrition was updated.',
+      });
+    } catch (error) {
+      setEditingMeal(null);
+      setIsMealError(true);
+      setMealMessage(error.message);
+    } finally {
+      setIsSavingMealEdit(false);
+    }
+  }
+
+  async function confirmDelete() {
     if (!pendingDelete || !user?.id) {
       return;
     }
@@ -187,29 +346,45 @@ export function MemberDashboardPage() {
     setIsDeleting(true);
 
     try {
-      const endpoint = `${API_BASE_URL}/workouts/delete/`;
+      const isMealDelete = pendingDelete.type === 'meal';
+      const endpoint = isMealDelete ? `${API_BASE_URL}/meals/delete/` : `${API_BASE_URL}/workouts/delete/`;
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ user_id: user.id, workout_id: pendingDelete.id }),
+        body: JSON.stringify({
+          user_id: user.id,
+          [isMealDelete ? 'meal_id' : 'workout_id']: pendingDelete.id,
+        }),
       });
       const data = await readApiResponse(response, endpoint);
 
       if (!response.ok) {
-        throw new Error(data.detail || 'Unable to delete workout.');
+        throw new Error(data.detail || `Unable to delete ${isMealDelete ? 'meal' : 'workout'}.`);
       }
 
-      setRecentWorkouts((current) => current.filter((item) => getWorkoutId(item) !== pendingDelete.id));
-      setActivityMessage('');
+      if (isMealDelete) {
+        setLoggedMeals((current) => current.filter((item) => Number(item.id) !== pendingDelete.id));
+        setMealMessage('');
+        setIsMealError(false);
+      } else {
+        setRecentWorkouts((current) => current.filter((item) => getWorkoutId(item) !== pendingDelete.id));
+        setActivityMessage('');
+      }
+
       setPendingDelete(null);
       setNotice({
-        title: 'Workout deleted',
-        body: data.detail || 'That workout was removed from your recent activity.',
+        title: isMealDelete ? 'Meal deleted' : 'Workout deleted',
+        body: data.detail || `That ${isMealDelete ? 'meal' : 'workout'} was removed.`,
       });
     } catch (error) {
-      setActivityMessage(error.message);
+      if (pendingDelete.type === 'meal') {
+        setIsMealError(true);
+        setMealMessage(error.message);
+      } else {
+        setActivityMessage(error.message);
+      }
       setPendingDelete(null);
     } finally {
       setIsDeleting(false);
@@ -535,8 +710,8 @@ export function MemberDashboardPage() {
         <section className="nutrition-section">
           <div className="section-header">
             <h2 className="section-title">Nutrition &amp; Calorie Logger</h2>
-            <div className="view-all-link history-actions">
-              Oct 25, 2024
+            <div className="history-actions">
+              <span className="nutrition-current-date">{nutritionDate}</span>
               <button className="btn-history">View History</button>
               <a className="btn btn-outline btn-sm ai-btn" href="/ai-assistant">
                 <span className="material-symbols-outlined icon-ai">smart_toy</span>
@@ -549,26 +724,26 @@ export function MemberDashboardPage() {
             <div className="nutrition-card custom-relative">
               <span className="material-symbols-outlined card-setting-icon">settings</span>
               <h3 className="nutrition-card-title">Daily Goal</h3>
-              <div className="nutrition-card-value">2,500 <span className="nutrition-card-unit">kcal</span></div>
+              <div className="nutrition-card-value">{formatWholeNumber(CALORIE_GOAL)} <span className="nutrition-card-unit">kcal</span></div>
             </div>
 
             <div className="nutrition-card">
               <h3 className="nutrition-card-title">Consumed</h3>
-              <div className="nutrition-card-value">1,850 <span className="nutrition-card-unit">kcal</span></div>
+              <div className="nutrition-card-value">{formatWholeNumber(nutritionTotals.calories)} <span className="nutrition-card-unit">kcal</span></div>
             </div>
 
             <div className="nutrition-card border-left-accent">
               <div className="remaining-wrapper">
                 <div>
                   <h3 className="nutrition-card-title">Remaining</h3>
-                  <div className="nutrition-card-value">650 <span className="nutrition-card-unit">kcal</span></div>
+                  <div className="nutrition-card-value">{formatWholeNumber(nutritionTotals.remainingCalories)} <span className="nutrition-card-unit">kcal</span></div>
                 </div>
                 <div className="progress-ring-container">
                   <svg className="progress-ring" height="60" width="60">
-                    <circle className="progress-ring__circle" cx="30" cy="30" fill="transparent" r="25" stroke="#e8e8e8" strokeWidth="4"></circle>
-                    <circle className="progress-ring__circle ring-fill" cx="30" cy="30" fill="transparent" r="25" stroke="var(--color-accent-lime)" strokeWidth="4"></circle>
+                    <circle className="progress-ring__circle" cx="30" cy="30" fill="transparent" r="25" stroke="#e8e8e8" strokeWidth="4" style={{ strokeDashoffset: 0 }}></circle>
+                    <circle className="progress-ring__circle ring-fill" cx="30" cy="30" fill="transparent" r="25" stroke="var(--color-accent-lime)" strokeWidth="4" style={{ strokeDashoffset: nutritionTotals.ringOffset }}></circle>
                   </svg>
-                  <span className="progress-percentage">74%</span>
+                  <span className="progress-percentage">{Math.round(nutritionTotals.caloriePercent)}%</span>
                 </div>
               </div>
             </div>
@@ -579,30 +754,30 @@ export function MemberDashboardPage() {
             <div className="macro-item">
               <div className="macro-header">
                 <span>Protein</span>
-                <span>145g / 180g</span>
+                <span>{formatWholeNumber(nutritionTotals.protein)}g / {PROTEIN_GOAL}g</span>
               </div>
               <div className="macro-bar">
-                <div className="macro-fill" style={{ width: '80%', backgroundColor: 'var(--color-protein)' }}></div>
+                <div className="macro-fill" style={{ width: `${nutritionTotals.proteinPercent}%`, backgroundColor: 'var(--color-protein)' }}></div>
               </div>
             </div>
 
             <div className="macro-item">
               <div className="macro-header">
                 <span>Carbohydrates</span>
-                <span>210g / 300g</span>
+                <span>{formatWholeNumber(nutritionTotals.carbs)}g / {CARBS_GOAL}g</span>
               </div>
               <div className="macro-bar">
-                <div className="macro-fill" style={{ width: '70%', backgroundColor: 'var(--color-carbs)' }}></div>
+                <div className="macro-fill" style={{ width: `${nutritionTotals.carbsPercent}%`, backgroundColor: 'var(--color-carbs)' }}></div>
               </div>
             </div>
 
             <div className="macro-item">
               <div className="macro-header">
                 <span>Fats</span>
-                <span>48g / 65g</span>
+                <span>{formatWholeNumber(nutritionTotals.fats)}g / {FATS_GOAL}g</span>
               </div>
               <div className="macro-bar">
-                <div className="macro-fill" style={{ width: '74%', backgroundColor: 'var(--color-fats)' }}></div>
+                <div className="macro-fill" style={{ width: `${nutritionTotals.fatsPercent}%`, backgroundColor: 'var(--color-fats)' }}></div>
               </div>
             </div>
           </div>
@@ -616,31 +791,67 @@ export function MemberDashboardPage() {
                   <tr>
                     <th>Meal</th>
                     <th className="text-right">Calories</th>
+                    <th className="meal-action-header" aria-label="Meal actions"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleMeals.map((meal, index) => {
+                  {loggedMeals.length === 0 && (
+                    <tr>
+                      <td className="meal-empty-cell last-row-cell" colSpan="3">
+                        <div className="meal-empty-state">
+                          <span className="material-symbols-outlined">restaurant</span>
+                          <p>No meals logged today.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+
+                  {loggedMeals.map((meal, index) => {
                     const photoUrl = resolveMediaUrl(meal.photo_url);
 
                     return (
                       <tr key={meal.id}>
-                        <td className={index === visibleMeals.length - 1 ? 'last-row-cell' : ''}>
+                        <td className={index === loggedMeals.length - 1 ? 'last-row-cell' : ''}>
                           <div className="meal-cell-layout">
                             {photoUrl ? (
-                              <img alt={meal.meal_type} className="meal-thumb" src={photoUrl} />
+                              <img alt={meal.description} className="meal-thumb" src={photoUrl} />
                             ) : (
                               <div className="meal-placeholder">
                                 <span className="material-symbols-outlined">restaurant</span>
                               </div>
                             )}
                             <div>
-                              <div className="meal-type">{meal.meal_type}</div>
-                              <div className="meal-desc">{meal.description}</div>
+                              <div className="meal-type">{meal.description}</div>
+                              <div className="meal-macros">
+                                <span>Protein {formatMacroValue(meal.protein_g)}</span>
+                                <span>Carbs {formatMacroValue(meal.carbs_g)}</span>
+                                <span>Fats {formatMacroValue(meal.fats_g)}</span>
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className={`text-right table-val-cell ${index === visibleMeals.length - 1 ? 'last-row-cell' : ''}`}>
+                        <td className={`text-right table-val-cell ${index === loggedMeals.length - 1 ? 'last-row-cell' : ''}`}>
                           {meal.calories} kcal
+                        </td>
+                        <td className={`meal-action-cell ${index === loggedMeals.length - 1 ? 'last-row-cell' : ''}`}>
+                          <div className="meal-table-actions">
+                            <button
+                              aria-label={`Edit ${meal.description}`}
+                              className="edit-action"
+                              onClick={() => startMealEdit(meal)}
+                              type="button"
+                            >
+                              <span className="material-symbols-outlined icon-sm-md">edit</span>
+                            </button>
+                            <button
+                              aria-label={`Delete ${meal.description}`}
+                              className="delete-action table-delete-pos"
+                              onClick={() => askToDeleteMeal(meal)}
+                              type="button"
+                            >
+                              <span className="material-symbols-outlined icon-sm-md">delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -730,28 +941,64 @@ export function MemberDashboardPage() {
         </section>
       </main>
 
-      {(pendingDelete || notice) && (
+      {(pendingDelete || editingMeal || notice) && (
         <div className="dashboard-modal-backdrop" role="presentation">
           <div className="dashboard-modal" role="dialog" aria-modal="true">
-            <p className="dashboard-modal-eyebrow">{pendingDelete ? 'Confirmation' : 'Status'}</p>
-            <h2>{pendingDelete?.title || notice.title}</h2>
-            <p>{pendingDelete?.body || notice.body}</p>
-            <div className="dashboard-modal-actions">
-              {pendingDelete ? (
+            <p className="dashboard-modal-eyebrow">{editingMeal ? 'Edit Meal' : pendingDelete ? 'Confirmation' : 'Status'}</p>
+            <h2>{editingMeal ? 'Edit nutrition' : pendingDelete?.title || notice.title}</h2>
+            {editingMeal ? (
+              <form className="dashboard-edit-form" onSubmit={saveMealEdit}>
+                <p>
+                  Adjust the nutrition values for <strong>{editingMeal.description}</strong>.
+                </p>
+                <div className="dashboard-edit-grid">
+                  <label>
+                    Calories
+                    <input min="0" name="calories" onChange={updateMealEditField} required type="number" value={editingMeal.calories} />
+                  </label>
+                  <label>
+                    Protein (g)
+                    <input min="0" name="protein" onChange={updateMealEditField} required type="number" value={editingMeal.protein} />
+                  </label>
+                  <label>
+                    Carbs (g)
+                    <input min="0" name="carbs" onChange={updateMealEditField} required type="number" value={editingMeal.carbs} />
+                  </label>
+                  <label>
+                    Fats (g)
+                    <input min="0" name="fats" onChange={updateMealEditField} required type="number" value={editingMeal.fats} />
+                  </label>
+                </div>
+                <div className="dashboard-modal-actions">
+                  <button className="ghost" disabled={isSavingMealEdit} onClick={() => setEditingMeal(null)} type="button">
+                    Back
+                  </button>
+                  <button disabled={isSavingMealEdit} type="submit">
+                    {isSavingMealEdit ? 'Saving' : 'Save Meal'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <p>{pendingDelete?.body || notice.body}</p>
+                <div className="dashboard-modal-actions">
+                  {pendingDelete ? (
                 <>
                   <button className="ghost" disabled={isDeleting} onClick={() => setPendingDelete(null)} type="button">
                     Back
                   </button>
-                  <button disabled={isDeleting} onClick={confirmDeleteRecentWorkout} type="button">
-                    {isDeleting ? 'Deleting' : 'Delete Workout'}
+                  <button disabled={isDeleting} onClick={confirmDelete} type="button">
+                    {isDeleting ? 'Deleting' : `Delete ${pendingDelete.type === 'meal' ? 'Meal' : 'Workout'}`}
                   </button>
                 </>
               ) : (
                 <button onClick={() => setNotice(null)} type="button">
                   Done
                 </button>
-              )}
-            </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

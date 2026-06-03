@@ -617,10 +617,39 @@
   color: var(--color-primary);
 }
 
+.meal-macros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 5px;
+  color: var(--color-on-surface-variant);
+  font-size: 12px;
+  font-style: italic;
+}
+
 .meal-desc {
   font-style: italic;
   color: var(--color-on-surface-variant);
   margin-top: 4px;
+}
+
+.meal-empty-cell {
+  padding: 34px 24px;
+}
+
+.meal-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.meal-empty-state .material-symbols-outlined {
+  color: var(--color-outline);
+  font-size: 22px;
 }
 
 .quick-log-card {
@@ -1639,10 +1668,31 @@ body {
   transition: color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
+.edit-action {
+  appearance: none;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #111111;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  opacity: 0;
+  padding: 4px;
+  transition: color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
 .activity-item:hover .delete-action,
 .food-log-table tr:hover .delete-action,
+.food-log-table tr:hover .edit-action,
+.edit-action:focus-visible,
 .delete-action:focus-visible {
   opacity: 1;
+}
+
+.edit-action:hover {
+  color: #2d6a4f;
+  transform: translateY(-1px);
 }
 
 .delete-action:hover {
@@ -1650,6 +1700,7 @@ body {
   transform: translateY(-1px);
 }
 
+.edit-action .material-symbols-outlined,
 .delete-action .material-symbols-outlined {
   font-size: 20px;
   color: currentColor;
@@ -1726,12 +1777,66 @@ body {
 }
 
 .table-val-cell {
+  vertical-align: middle;
   white-space: nowrap;
 }
 
-.table-delete-pos {
-  margin-left: 12px;
+.meal-action-header,
+.meal-action-cell {
+  width: 76px;
+}
+
+.meal-action-cell {
+  text-align: right;
   vertical-align: middle;
+}
+
+.meal-table-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.table-delete-pos {
+  flex: 0 0 auto;
+  vertical-align: middle;
+}
+
+.dashboard-edit-form {
+  margin: 0;
+}
+
+.dashboard-edit-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.dashboard-edit-grid label {
+  color: #111111;
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 7px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.dashboard-edit-grid input {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  color: #111111;
+  font: inherit;
+  letter-spacing: 0;
+  padding: 12px;
+}
+
+.dashboard-edit-grid input:focus {
+  border-color: #111111;
+  outline: none;
 }
 
 .history-actions {
@@ -1739,6 +1844,16 @@ body {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.nutrition-current-date {
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: uppercase;
 }
 
 .btn-history {
@@ -1761,6 +1876,21 @@ body {
 .btn-history:focus-visible {
   background-color: var(--color-surface-container-high);
   outline: none;
+}
+
+.ai-btn {
+  background: #f7efe0;
+  border-color: #d4a373;
+  color: #3f2a11;
+  text-decoration: none;
+}
+
+.ai-btn:hover,
+.ai-btn:focus-visible {
+  background: #ead4ad;
+  border-color: #b97828;
+  color: #1f1509;
+  text-decoration: none;
 }
 
 .remaining-wrapper {

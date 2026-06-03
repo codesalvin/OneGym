@@ -1,12 +1,14 @@
 from django.urls import path
 
 from .views import (
+    ai_assistant_chat,
     book_class,
     cancel_booking,
     analyze_meal_photo,
     class_list,
     create_meal,
     create_workout,
+    delete_meal,
     delete_workout,
     health_check,
     request_password_reset,
@@ -14,7 +16,9 @@ from .views import (
     sign_in,
     sign_up,
     social_auth,
+    update_meal,
     user_bookings,
+    user_ai_chat_messages,
     user_detail,
     user_list,
     user_meals,
@@ -23,8 +27,10 @@ from .views import (
 
 urlpatterns = [
     path('health/', health_check, name='health-check'),
+    path('ai-assistant/chat/', ai_assistant_chat, name='ai-assistant-chat'),
     path('users/', user_list, name='user-list'),
     path('users/<int:user_id>/', user_detail, name='user-detail'),
+    path('users/<int:user_id>/ai-messages/', user_ai_chat_messages, name='user-ai-chat-messages'),
     path('users/<int:user_id>/bookings/', user_bookings, name='user-bookings'),
     path('users/<int:user_id>/workouts/', user_workouts, name='user-workouts'),
     path('users/<int:user_id>/meals/', user_meals, name='user-meals'),
@@ -37,6 +43,11 @@ urlpatterns = [
     path('workouts/<str:workout_id>/', delete_workout, name='delete-workout-invalid-id'),
     path('meals/', create_meal, name='create-meal'),
     path('meals/analyze/', analyze_meal_photo, name='analyze-meal-photo'),
+    path('meals/update/', update_meal, name='update-meal-post'),
+    path('meals/delete/', delete_meal, name='delete-meal-post'),
+    path('meals/<int:meal_id>/update/', update_meal, name='update-meal'),
+    path('meals/<int:meal_id>/', delete_meal, name='delete-meal'),
+    path('meals/<str:meal_id>/', delete_meal, name='delete-meal-invalid-id'),
     path('auth/signup/', sign_up, name='sign-up'),
     path('auth/signin/', sign_in, name='sign-in'),
     path('auth/social/', social_auth, name='social-auth'),

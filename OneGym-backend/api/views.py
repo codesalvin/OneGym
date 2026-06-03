@@ -122,15 +122,11 @@ def first_number(*values):
     return 0
 
 
-def get_gemini_text(payload):
-    texts = []
-    for candidate in payload.get('candidates', []):
-        for part in candidate.get('content', {}).get('parts', []):
-            text = part.get('text')
-            if text:
-                texts.append(text)
+def get_ollama_text(payload):
+    if isinstance(payload, dict):
+        return payload.get('response') or payload.get('message', {}).get('content') or ''
 
-    return '\n'.join(texts)
+    return ''
 
 
 def find_nested_value(data, keys):
@@ -195,8 +191,8 @@ def normalize_food_estimate(estimate, raw_text=''):
     }
 
 
-def build_gemini_payload(uploaded_file, image_data, strict_retry=False):
-    instruction = (
+def build_food_prompt(strict_retry=False):
+    prompt = (
         'You are estimating nutrition from a food photo for a gym meal logger. '
         'Identify the visible food and estimate one serving shown in the image. '
         'Do not write JSON, markdown, explanations, apologies, or prose. '
@@ -211,60 +207,314 @@ def build_gemini_payload(uploaded_file, image_data, strict_retry=False):
     )
 
     if strict_retry:
-        instruction += ' Important: do not return 0 unless there is no food visible. Estimate from the plate/bowl size and visible ingredients.'
+        prompt += ' Important: do not return 0 unless there is no food visible. Estimate from the plate/bowl size and visible ingredients.'
 
+    return prompt
+
+
+def build_ollama_payload(image_data, strict_retry=False):
     return {
-        'contents': [
-            {
-                'parts': [
-                    {'text': instruction},
-                    {
-                        'inline_data': {
-                            'mime_type': uploaded_file.content_type,
-                            'data': image_data,
-                        },
-                    },
-                ],
-            },
-        ],
-        'generationConfig': {
+        'model': settings.OLLAMA_VISION_MODEL,
+        'prompt': build_food_prompt(strict_retry),
+        'images': [image_data],
+        'stream': False,
+        'options': {
             'temperature': 0.2 if strict_retry else 0.1,
-            'maxOutputTokens': 1000,
+            'num_predict': 500,
         },
     }
 
 
-def build_gemini_text_payload(text):
+def build_ollama_text_payload(text):
     return {
-        'contents': [
-            {
-                'parts': [
-                    {
-                        'text': (
-                            'Convert this food analysis text into nutrition numbers. '
-                            'If nutrition numbers are missing, estimate them from the described food. '
-                            'Do not write JSON, markdown, explanations, apologies, or prose. '
-                            'Return exactly these five short lines and nothing else:\n'
-                            'DESCRIPTION: short food name under 6 words\n'
-                            'CALORIES: number\n'
-                            'PROTEIN_G: number\n'
-                            'CARBS_G: number\n'
-                            'FATS_G: number\n'
-                            f'Food analysis text: {text[:1200]}'
-                        ),
-                    },
-                ],
-            },
-        ],
-        'generationConfig': {
+        'model': settings.OLLAMA_VISION_MODEL,
+        'prompt': (
+            'Convert this food analysis text into nutrition numbers. '
+            'If nutrition numbers are missing, estimate them from the described food. '
+            'Do not write JSON, markdown, explanations, apologies, or prose. '
+            'Return exactly these five short lines and nothing else:\n'
+            'DESCRIPTION: short food name under 6 words\n'
+            'CALORIES: number\n'
+            'PROTEIN_G: number\n'
+            'CARBS_G: number\n'
+            'FATS_G: number\n'
+            f'Food analysis text: {text[:1200]}'
+        ),
+        'stream': False,
+        'options': {
             'temperature': 0.2,
-            'maxOutputTokens': 500,
+            'num_predict': 500,
         },
     }
+
+
+def post_ollama_generate(payload):
+    base_url = settings.OLLAMA_BASE_URL.rstrip('/')
+    endpoint = f"{base_url}/generate" if base_url.endswith('/api') else f"{base_url}/api/generate"
+    headers = {}
+    if settings.OLLAMA_API_KEY:
+        headers['Authorization'] = f'Bearer {settings.OLLAMA_API_KEY}'
+
+    try:
+        response = http_requests.post(endpoint, headers=headers, json=payload, timeout=150)
+    except http_requests.RequestException as error:
+        raise ValueError(f'Ollama Cloud request failed: {error}') from error
+
+    if response.status_code >= 400:
+        try:
+            error_message = response.json().get('error') or 'Food analysis service is unavailable.'
+        except ValueError:
+            error_message = response.text or 'Food analysis service is unavailable.'
+
+        raise ValueError(error_message)
+
+    try:
+        return response.json()
+    except ValueError as error:
+        raise ValueError('Ollama returned an invalid response.') from error
+
+
+def summarize_today_meals(user_id):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT
+                description,
+                calories,
+                protein_g,
+                carbs_g,
+                fats_g,
+                meal_date
+            FROM meals
+            WHERE user_id = %s AND DATE(meal_date) = %s
+            ORDER BY meal_date DESC, created_at DESC
+            LIMIT 8
+            ''',
+            [user_id, timezone.localdate()],
+        )
+        rows = cursor.fetchall()
+
+    meals = []
+    totals = {
+        'calories': 0,
+        'protein_g': 0,
+        'carbs_g': 0,
+        'fats_g': 0,
+    }
+
+    for description, calories, protein_g, carbs_g, fats_g, meal_date in rows:
+        meal = {
+            'description': description,
+            'calories': float(calories or 0),
+            'protein_g': float(protein_g or 0),
+            'carbs_g': float(carbs_g or 0),
+            'fats_g': float(fats_g or 0),
+            'meal_date': meal_date,
+        }
+        meals.append(meal)
+        totals['calories'] += meal['calories']
+        totals['protein_g'] += meal['protein_g']
+        totals['carbs_g'] += meal['carbs_g']
+        totals['fats_g'] += meal['fats_g']
+
+    return meals, totals
+
+
+def build_assistant_prompt(message, meals, totals):
+    meal_lines = [
+        (
+            f"- {meal['description']}: {meal['calories']:.0f} kcal, "
+            f"{meal['protein_g']:.0f}g protein, {meal['carbs_g']:.0f}g carbs, {meal['fats_g']:.0f}g fats"
+        )
+        for meal in meals
+    ]
+    meal_summary = '\n'.join(meal_lines) if meal_lines else '- No meals logged today.'
+    remaining_calories = max(0, 2500 - totals['calories'])
+
+    return (
+        'You are OneGym AI Assistant, a concise gym nutrition and wellness coach. '
+        'Use the user\'s current day nutrition context when answering. '
+        'Do not claim to diagnose medical conditions. '
+        'Keep answers practical and specific. '
+        'Return only valid JSON, with no markdown fences and no extra text. '
+        'The JSON must match this shape:\n'
+        '{'
+        '"summary":"one short paragraph under 45 words",'
+        '"cards":['
+        '{"label":"RECOMMENDED RECIPE","title":"short recipe name","detail":"one short reason"},'
+        '{"label":"MACRO ESTIMATE","macros":[{"value":"38g","label":"PRO"},{"value":"4g","label":"FAT"},{"value":"2g","label":"CHO"}]}'
+        '],'
+        '"note":"optional short italic note under 20 words"'
+        '}\n\n'
+        'Daily goals:\n'
+        '- Calories: 2500 kcal\n'
+        '- Protein: 180g\n'
+        '- Carbs: 300g\n'
+        '- Fats: 65g\n\n'
+        'Today so far:\n'
+        f"- Calories consumed: {totals['calories']:.0f} kcal\n"
+        f"- Calories remaining: {remaining_calories:.0f} kcal\n"
+        f"- Protein: {totals['protein_g']:.0f}g / 180g\n"
+        f"- Carbs: {totals['carbs_g']:.0f}g / 300g\n"
+        f"- Fats: {totals['fats_g']:.0f}g / 65g\n\n"
+        f"Recent meals today:\n{meal_summary}\n\n"
+        f"User message: {message}\n\n"
+        'Answer the user directly.'
+    )
+
+
+def build_ollama_chat_payload(message, meals, totals):
+    return {
+        'model': settings.OLLAMA_CHAT_MODEL,
+        'prompt': build_assistant_prompt(message, meals, totals),
+        'stream': False,
+        'options': {
+            'temperature': 0.4,
+            'num_predict': 320,
+        },
+    }
+
+
+def save_ai_chat_message(user_id, role, body, title=None, cards=None, note=''):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            INSERT INTO ai_chat_messages
+                (user_id, role, title, body, cards, note, created_at)
+            VALUES
+                (%s, %s, %s, %s, %s, %s, NOW(6))
+            ''',
+            [
+                user_id,
+                role,
+                title,
+                body,
+                json.dumps(cards or []),
+                note or None,
+            ],
+        )
+        return cursor.lastrowid
+
+
+def serialize_ai_chat_row(row):
+    message_id, role, title, body, cards, note, created_at = row
+    try:
+        parsed_cards = json.loads(cards) if cards else []
+    except (TypeError, ValueError):
+        parsed_cards = []
+
+    return {
+        'id': message_id,
+        'role': role,
+        'title': title,
+        'body': body,
+        'cards': parsed_cards,
+        'note': note or '',
+        'created_at': created_at,
+    }
+
+
+def parse_assistant_reply(content):
+    try:
+        data = extract_json_object(content)
+    except ValueError:
+        return {
+            'summary': content,
+            'cards': [],
+            'note': '',
+        }
+
+    if not isinstance(data, dict):
+        return {
+            'summary': content,
+            'cards': [],
+            'note': '',
+        }
+
+    cards = data.get('cards') if isinstance(data.get('cards'), list) else []
+    return {
+        'summary': str(data.get('summary') or data.get('reply') or content),
+        'cards': cards[:2],
+        'note': str(data.get('note') or ''),
+    }
+
+
+@api_view(['GET'])
+def user_ai_chat_messages(_request, user_id):
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
+        if not cursor.fetchone():
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        cursor.execute(
+            '''
+            SELECT id, role, title, body, cards, note, created_at
+            FROM ai_chat_messages
+            WHERE user_id = %s
+            ORDER BY created_at ASC, id ASC
+            LIMIT 60
+            ''',
+            [user_id],
+        )
+        messages = [serialize_ai_chat_row(row) for row in cursor.fetchall()]
+
+    return Response(messages)
+
+
+@api_view(['POST'])
+def ai_assistant_chat(request):
+    user_id = request.data.get('user_id')
+    message = (request.data.get('message') or '').strip()
+
+    if not user_id:
+        return Response({'detail': 'User id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not message:
+        return Response({'detail': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if settings.OLLAMA_BASE_URL.rstrip('/').startswith('https://ollama.com') and not settings.OLLAMA_API_KEY:
+        return Response(
+            {'detail': 'Add OLLAMA_API_KEY to OneGym-backend/.env to enable AI Assistant chat.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
+        if not cursor.fetchone():
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    meals, totals = summarize_today_meals(user_id)
+    save_ai_chat_message(user_id, 'user', message)
+
+    try:
+        response_data = post_ollama_generate(build_ollama_chat_payload(message, meals, totals))
+        reply = get_ollama_text(response_data).strip()
+    except Exception as error:
+        return Response(
+            {'detail': str(error) or 'AI Assistant is unavailable.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not reply:
+        return Response({'detail': 'AI Assistant did not return a response.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    formatted = parse_assistant_reply(reply)
+    assistant_id = save_ai_chat_message(
+        user_id,
+        'assistant',
+        formatted['summary'],
+        title='Assistant Recommendation',
+        cards=formatted['cards'],
+        note=formatted['note'],
+    )
+    return Response({
+        'id': assistant_id,
+        'reply': formatted['summary'],
+        'cards': formatted['cards'],
+        'note': formatted['note'],
+    })
 
 
 def analyze_food_image(uploaded_file):
-    if not settings.GEMINI_API_KEY:
+    if settings.OLLAMA_BASE_URL.rstrip('/').startswith('https://ollama.com') and not settings.OLLAMA_API_KEY:
         return {
             'description': '',
             'calories': '',
@@ -273,88 +523,56 @@ def analyze_food_image(uploaded_file):
             'fats_g': '',
             'confidence': 'manual_required',
             'detected_foods': [],
-            'detail': 'Add GEMINI_API_KEY to OneGym-backend/.env to enable food photo estimates.',
+            'detail': 'Add OLLAMA_API_KEY to OneGym-backend/.env to enable Ollama Cloud food photo estimates.',
+        }
+
+    if not settings.OLLAMA_VISION_MODEL:
+        return {
+            'description': '',
+            'calories': '',
+            'protein_g': '',
+            'carbs_g': '',
+            'fats_g': '',
+            'confidence': 'manual_required',
+            'detected_foods': [],
+            'detail': 'Add OLLAMA_VISION_MODEL to OneGym-backend/.env to enable food photo estimates.',
         }
 
     uploaded_file.seek(0)
     image_bytes = uploaded_file.read()
     image_data = base64.b64encode(image_bytes).decode('ascii')
 
-    endpoint = f'https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_VISION_MODEL}:generateContent'
-    headers = {
-        'x-goog-api-key': settings.GEMINI_API_KEY,
-        'Content-Type': 'application/json',
-    }
-
-    response = http_requests.post(
-        endpoint,
-        headers=headers,
-        json=build_gemini_payload(uploaded_file, image_data),
-        timeout=45,
-    )
-
-    if response.status_code >= 400:
-        try:
-            error_data = response.json().get('error', {})
-            error_message = error_data.get('message') or 'Food analysis service is unavailable.'
-        except ValueError:
-            error_message = 'Food analysis service is unavailable.'
-
-        raise ValueError(error_message)
-
-    response_data = response.json()
-    content = get_gemini_text(response_data)
+    response_data = post_ollama_generate(build_ollama_payload(image_data))
+    content = get_ollama_text(response_data)
     if not content:
-        raise ValueError('Gemini did not return a nutrition estimate.')
+        raise ValueError('Ollama did not return a nutrition estimate.')
 
     estimate = extract_json_object(content)
     normalized = normalize_food_estimate(estimate, content)
 
     if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
-        retry_response = http_requests.post(
-            endpoint,
-            headers=headers,
-            json=build_gemini_text_payload(content),
-            timeout=45,
-        )
-        if retry_response.status_code >= 400:
-            raise ValueError('Gemini described the food but did not return nutrition numbers.')
-        retry_content = get_gemini_text(retry_response.json())
+        retry_content = get_ollama_text(post_ollama_generate(build_ollama_text_payload(content)))
         if not retry_content:
-            raise ValueError('Gemini described the food but did not return nutrition numbers.')
+            raise ValueError('Ollama described the food but did not return nutrition numbers.')
         normalized = normalize_food_estimate(extract_json_object(retry_content), retry_content)
 
     normalized['description'] = shorten_description(normalized['description'])
 
     if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
-        retry_response = http_requests.post(
-            endpoint,
-            headers=headers,
-            json=build_gemini_payload(uploaded_file, image_data, strict_retry=True),
-            timeout=45,
-        )
-        if retry_response.status_code < 400:
-            retry_content = get_gemini_text(retry_response.json())
-            if retry_content:
-                normalized = normalize_food_estimate(extract_json_object(retry_content), retry_content)
-                normalized['description'] = shorten_description(normalized['description'])
+        retry_content = get_ollama_text(post_ollama_generate(build_ollama_payload(image_data, strict_retry=True)))
+        if retry_content:
+            normalized = normalize_food_estimate(extract_json_object(retry_content), retry_content)
+            normalized['description'] = shorten_description(normalized['description'])
 
     if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
-        text_retry_response = http_requests.post(
-            endpoint,
-            headers=headers,
-            json=build_gemini_text_payload(content),
-            timeout=45,
-        )
-        if text_retry_response.status_code < 400:
-            text_retry_content = get_gemini_text(text_retry_response.json())
-            if text_retry_content:
-                normalized = normalize_food_estimate(extract_json_object(text_retry_content), text_retry_content)
-                normalized['description'] = shorten_description(normalized['description'])
+        text_retry_content = get_ollama_text(post_ollama_generate(build_ollama_text_payload(content)))
+        if text_retry_content:
+            normalized = normalize_food_estimate(extract_json_object(text_retry_content), text_retry_content)
+            normalized['description'] = shorten_description(normalized['description'])
 
     if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
         normalized['description'] = extract_partial_description(content)
-        raise ValueError('Gemini described the food but did not return nutrition numbers. Try a clearer, closer food photo.')
+        raise ValueError('Ollama described the food but did not return nutrition numbers. Try a clearer, closer food photo.')
 
     normalized['detail'] = 'Nutrition estimate generated from photo.'
     return normalized
@@ -883,6 +1101,94 @@ def create_meal(request):
         },
         status=status.HTTP_201_CREATED,
     )
+
+
+@api_view(['POST', 'PATCH', 'PUT'])
+def update_meal(request, meal_id=None):
+    meal_id = meal_id or request.data.get('meal_id') or request.query_params.get('meal_id')
+    user_id = request.data.get('user_id') or request.query_params.get('user_id')
+
+    if not user_id:
+        return Response({'detail': 'User id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        meal_id = int(meal_id)
+    except (TypeError, ValueError):
+        return Response({'detail': 'Valid meal id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    serializer = MealCreateSerializer(data={
+        'user_id': user_id,
+        'meal_type': request.data.get('meal_type') or 'Meal',
+        'description': request.data.get('description'),
+        'calories': request.data.get('calories'),
+        'protein_g': request.data.get('protein_g'),
+        'carbs_g': request.data.get('carbs_g'),
+        'fats_g': request.data.get('fats_g'),
+        'photo_url': request.data.get('photo_url') or '',
+    })
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            'SELECT id FROM meals WHERE id = %s AND user_id = %s LIMIT 1',
+            [meal_id, user_id],
+        )
+        if not cursor.fetchone():
+            return Response({'detail': 'Meal not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        cursor.execute(
+            '''
+            UPDATE meals
+            SET
+                description = %s,
+                calories = %s,
+                protein_g = %s,
+                carbs_g = %s,
+                fats_g = %s
+            WHERE id = %s AND user_id = %s
+            ''',
+            [
+                data['description'],
+                data['calories'],
+                data.get('protein_g'),
+                data.get('carbs_g'),
+                data.get('fats_g'),
+                meal_id,
+                user_id,
+            ],
+        )
+
+    return Response({'detail': 'Meal updated.'})
+
+
+@api_view(['DELETE', 'POST'])
+def delete_meal(request, meal_id=None):
+    meal_id = meal_id or request.data.get('meal_id') or request.query_params.get('meal_id')
+    user_id = request.data.get('user_id') or request.query_params.get('user_id')
+
+    if not user_id:
+        return Response({'detail': 'User id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        meal_id = int(meal_id)
+    except (TypeError, ValueError):
+        return Response({'detail': 'Valid meal id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            'SELECT id FROM meals WHERE id = %s AND user_id = %s LIMIT 1',
+            [meal_id, user_id],
+        )
+        if not cursor.fetchone():
+            return Response({'detail': 'Meal not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        cursor.execute(
+            'DELETE FROM meals WHERE id = %s AND user_id = %s',
+            [meal_id, user_id],
+        )
+
+    return Response({'detail': 'Meal deleted.'})
 
 
 def password_matches(raw_password, stored_password):
