@@ -1,0 +1,576 @@
+.trainer-join-page {
+  background: transparent;
+  color: #1a1a1a;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.trainer-join-page main {
+  padding: 74px 32px 96px;
+}
+
+.trainer-join-page .nav {
+  background: transparent;
+}
+
+.trainer-hero,
+.trainer-preview,
+.trainer-application-section {
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+.trainer-hero {
+  align-items: center;
+  display: grid;
+  gap: 48px;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 480px);
+  min-height: 560px;
+  padding: 42px 0 86px;
+}
+
+.trainer-eyebrow {
+  color: #1a1a1a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+
+.trainer-hero h1,
+.trainer-section-heading h2,
+.trainer-application-copy h2 {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.trainer-hero h1 {
+  font-size: clamp(54px, 7vw, 96px);
+  line-height: 0.95;
+  margin: 0 0 22px;
+  max-width: 720px;
+}
+
+.trainer-hero-copy > p:not(.trainer-eyebrow),
+.trainer-application-copy > p {
+  color: #444748;
+  font-size: 16px;
+  line-height: 1.8;
+  max-width: 580px;
+}
+
+.trainer-hero-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.trainer-primary-link,
+.trainer-secondary-link,
+.trainer-application-form button {
+  align-items: center;
+  border: 1px solid #1a1a1a;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 8px;
+  letter-spacing: 0.14em;
+  padding: 14px 20px;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.trainer-primary-link,
+.trainer-application-form button {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
+.trainer-secondary-link {
+  background: #ffffff;
+  color: #1a1a1a;
+}
+
+.trainer-primary-link:hover,
+.trainer-application-form button:hover {
+  background: #333333;
+}
+
+.trainer-secondary-link:hover {
+  background: #f4f4f4;
+}
+
+.trainer-hero-card,
+.trainer-side-preview,
+.trainer-client-spotlight,
+.trainer-schedule-card,
+.trainer-programs,
+.trainer-application-form {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #dadada;
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.05);
+}
+
+.trainer-hero-card {
+  padding: 26px;
+}
+
+.trainer-portal-top {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.trainer-portal-top span,
+.trainer-mini-stats span,
+.trainer-mini-stats small {
+  color: #747878;
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.trainer-portal-top strong {
+  display: block;
+  font-family: var(--serif);
+  font-size: 36px;
+  font-style: italic;
+  line-height: 1;
+}
+
+.trainer-portal-top img {
+  border-radius: 999px;
+  height: 54px;
+  object-fit: cover;
+  width: 54px;
+}
+
+.trainer-mini-stats {
+  display: grid;
+  gap: 12px;
+}
+
+.trainer-mini-stats div {
+  background: #f4f4f4;
+  border: 1px solid #e8e8e8;
+  padding: 18px;
+}
+
+.trainer-mini-stats strong {
+  display: block;
+  font-family: var(--serif);
+  font-size: 42px;
+  line-height: 1;
+  margin: 12px 0 8px;
+}
+
+.trainer-preview {
+  align-items: start;
+  display: grid;
+  gap: 26px;
+  grid-template-columns: 240px minmax(0, 1fr);
+  padding: 12px 0 92px;
+}
+
+.trainer-side-preview {
+  padding: 28px 18px;
+  position: sticky;
+  top: 18px;
+}
+
+.trainer-side-preview h2 {
+  font-family: var(--serif);
+  font-size: 42px;
+  font-style: italic;
+  line-height: 1;
+  text-align: center;
+}
+
+.trainer-side-preview > p {
+  color: #747878;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  margin: 8px 0 28px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.trainer-side-preview nav {
+  display: grid;
+  gap: 4px;
+}
+
+.trainer-side-preview nav span {
+  align-items: center;
+  color: #444748;
+  display: flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 12px;
+  letter-spacing: 0.14em;
+  padding: 13px 12px;
+  text-transform: uppercase;
+}
+
+.trainer-side-preview nav span.active {
+  border-left: 2px solid #1a1a1a;
+  color: #1a1a1a;
+}
+
+.trainer-side-preview i {
+  font-size: 20px;
+  font-style: normal;
+}
+
+.trainer-preview-content {
+  min-width: 0;
+}
+
+.trainer-section-heading {
+  margin-bottom: 24px;
+}
+
+.trainer-section-heading h2,
+.trainer-application-copy h2 {
+  font-size: clamp(36px, 4.5vw, 62px);
+  line-height: 1.02;
+  margin: 0;
+}
+
+.trainer-dashboard-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+}
+
+.trainer-client-spotlight {
+  overflow: hidden;
+  position: relative;
+}
+
+.trainer-client-spotlight img {
+  display: block;
+  filter: grayscale(18%);
+  height: 390px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.trainer-client-spotlight > div {
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
+  bottom: 94px;
+  color: #ffffff;
+  left: 0;
+  padding: 70px 32px 26px;
+  position: absolute;
+  right: 0;
+}
+
+.trainer-client-spotlight p {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.trainer-client-spotlight h3,
+.trainer-card-title h3,
+.trainer-programs h3 {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-style: italic;
+  line-height: 1.1;
+}
+
+.trainer-client-spotlight footer {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.trainer-client-spotlight footer span {
+  background: #ffffff;
+  padding: 18px;
+  text-align: center;
+}
+
+.trainer-client-spotlight small,
+.trainer-schedule-item small {
+  color: #747878;
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.trainer-client-spotlight footer strong {
+  display: block;
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.trainer-schedule-card,
+.trainer-programs {
+  padding: 28px;
+}
+
+.trainer-card-title {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.trainer-schedule-list {
+  display: grid;
+}
+
+.trainer-schedule-item {
+  align-items: start;
+  border-bottom: 1px solid #e8e8e8;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  padding: 18px 0;
+}
+
+.trainer-schedule-item:last-child {
+  border-bottom: 0;
+}
+
+.trainer-schedule-item time {
+  color: #747878;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.trainer-schedule-item strong {
+  display: block;
+  font-size: 14px;
+}
+
+.trainer-schedule-item > span {
+  color: #747878;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.trainer-schedule-item > span.ready {
+  border: 1px solid #1a1a1a;
+  color: #1a1a1a;
+  padding: 3px 7px;
+}
+
+.trainer-programs {
+  margin-top: 24px;
+}
+
+.trainer-program-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.trainer-program-grid article {
+  background: #f4f4f4;
+  border: 1px solid #e8e8e8;
+  min-height: 220px;
+  padding: 22px;
+}
+
+.trainer-program-grid .material-symbols-outlined {
+  font-size: 30px;
+  margin-bottom: 18px;
+}
+
+.trainer-program-grid h4 {
+  font-size: 15px;
+  margin-bottom: 9px;
+}
+
+.trainer-program-grid p {
+  color: #444748;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.trainer-program-grid small {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  margin-top: 22px;
+  text-transform: uppercase;
+}
+
+.trainer-application-section {
+  align-items: start;
+  display: grid;
+  gap: 48px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
+  padding: 32px 0 0;
+}
+
+.trainer-approval-steps {
+  display: grid;
+  gap: 8px;
+  margin-top: 28px;
+  max-width: 420px;
+}
+
+.trainer-approval-steps span {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #dadada;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 14px 16px;
+  text-transform: uppercase;
+}
+
+.trainer-application-form {
+  display: grid;
+  gap: 18px;
+  padding: 30px;
+}
+
+.trainer-form-row {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.trainer-application-form label {
+  color: #1a1a1a;
+  display: grid;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 8px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.trainer-application-form input,
+.trainer-application-form textarea {
+  background: #ffffff;
+  border: 1px solid #dadada;
+  color: #1a1a1a;
+  font: inherit;
+  letter-spacing: 0;
+  padding: 14px 15px;
+  resize: vertical;
+  text-transform: none;
+}
+
+.trainer-application-form input[type='file'] {
+  cursor: pointer;
+  padding: 12px;
+}
+
+.trainer-application-form input[type='file']::file-selector-button {
+  background: #1a1a1a;
+  border: 0;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin-right: 14px;
+  padding: 10px 14px;
+  text-transform: uppercase;
+}
+
+.trainer-application-form input:focus,
+.trainer-application-form textarea:focus {
+  border-color: #1a1a1a;
+  outline: none;
+}
+
+.trainer-application-form button {
+  cursor: pointer;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.trainer-application-form button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.trainer-form-note {
+  color: #747878;
+  font-size: 12px;
+  margin: 0;
+  text-align: center;
+}
+
+.trainer-form-note.success {
+  color: #047857;
+}
+
+.trainer-form-note.error {
+  color: #b91c1c;
+}
+
+@media (max-width: 980px) {
+  .trainer-hero,
+  .trainer-preview,
+  .trainer-dashboard-grid,
+  .trainer-application-section {
+    grid-template-columns: 1fr;
+  }
+
+  .trainer-side-preview {
+    display: none;
+  }
+
+  .trainer-program-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .trainer-join-page main {
+    padding: 46px 18px 72px;
+  }
+
+  .trainer-hero {
+    min-height: auto;
+    padding: 32px 0 62px;
+  }
+
+  .trainer-hero-actions,
+  .trainer-primary-link,
+  .trainer-secondary-link {
+    width: 100%;
+  }
+
+  .trainer-primary-link,
+  .trainer-secondary-link {
+    justify-content: center;
+  }
+
+  .trainer-client-spotlight img {
+    height: 320px;
+  }
+
+  .trainer-client-spotlight footer,
+  .trainer-form-row,
+  .trainer-program-grid {
+    grid-template-columns: 1fr;
+  }
+}

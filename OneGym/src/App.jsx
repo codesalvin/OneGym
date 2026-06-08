@@ -5,6 +5,9 @@ import { SignInPage } from './pages/SignInPage';
 import { BookingPage } from './pages/Booking';
 import { LogWorkoutPage } from './pages/LogWorkout';
 import { AiAssistantPage } from './pages/AiAssistant';
+import { MealHistoryPage } from './pages/MealHistory';
+import { JoinTrainerPage } from './pages/JoinTrainerPage';
+import { TrainerDashboardPage } from './pages/TrainerDashboard';
 
 function App() {
 
@@ -16,6 +19,9 @@ function App() {
       <Route path="/booking" element={<BookingPage />} />
       <Route path="/log-workout" element={<LogWorkoutPage />} />
       <Route path="/ai-assistant" element={<AiAssistantPage />} />
+      <Route path="/meal-history" element={<MealHistoryPage />} />
+      <Route path="/join-trainer" element={<JoinTrainerPage />} />
+      <Route path="/trainer-dashboard" element={<TrainerDashboardPage />} />
     </Routes>
   )
 }

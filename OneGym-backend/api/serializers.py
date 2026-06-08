@@ -99,6 +99,52 @@ class MealSummarySerializer(serializers.Serializer):
     created_at = serializers.DateTimeField()
 
 
+class TrainerApplicationCreateSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(required=False, allow_null=True)
+    full_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField(max_length=254)
+    phone = serializers.CharField(max_length=40, required=False, allow_blank=True, allow_null=True)
+    specialties = serializers.CharField(max_length=255)
+    experience_years = serializers.IntegerField(min_value=0, max_value=80, default=0)
+    bio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_full_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Full name is required.')
+
+        return value
+
+    def validate_specialties(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('At least one specialty is required.')
+
+        return value
+
+
+class TrainerApplicationSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    user_id = serializers.IntegerField(allow_null=True)
+    full_name = serializers.CharField()
+    email = serializers.EmailField()
+    phone = serializers.CharField(allow_blank=True, allow_null=True)
+    specialties = serializers.CharField()
+    experience_years = serializers.IntegerField()
+    certification_file_url = serializers.CharField()
+    certification_file_name = serializers.CharField()
+    bio = serializers.CharField(allow_blank=True, allow_null=True)
+    status = serializers.CharField()
+    reviewed_by = serializers.IntegerField(allow_null=True)
+    reviewed_at = serializers.DateTimeField(allow_null=True)
+    created_at = serializers.DateTimeField()
+
+
+class TrainerApplicationReviewSerializer(serializers.Serializer):
+    reviewer_id = serializers.IntegerField(required=False, allow_null=True)
+    status = serializers.ChoiceField(choices=['approved', 'rejected'])
+
+
 class SignUpSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     email = serializers.EmailField(max_length=254)

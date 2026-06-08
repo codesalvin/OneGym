@@ -17,7 +17,7 @@
   min-height: 100vh;
   display: flex;
   position: relative;
-  background-color: var(--signin-background);
+  background-color: transparent;
   color: var(--signin-on-surface);
   font-family: var(--signin-font-main);
   font-size: 16px;

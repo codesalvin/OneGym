@@ -1,8 +1,8 @@
 .nav {
-  position: sticky; top: 0; z-index: 100;
-  background: rgba(247, 246, 242, 0.92);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
+  position: relative; top: 0; z-index: 100;
+  background: transparent;
+  backdrop-filter: none;
+  border-bottom: 0;
 }
 .nav-inner {
   display: flex; align-items: center; gap: 32px;

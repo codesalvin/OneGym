@@ -30,10 +30,25 @@ from .serializers import (
     SignInSerializer,
     SignUpSerializer,
     SocialAuthSerializer,
+    TrainerApplicationCreateSerializer,
+    TrainerApplicationReviewSerializer,
+    TrainerApplicationSerializer,
     UserSerializer,
     WorkoutCreateSerializer,
     WorkoutSummarySerializer,
 )
+
+
+ALLOWED_CERTIFICATION_EXTENSIONS = {'.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.webp'}
+ALLOWED_CERTIFICATION_CONTENT_TYPES = {
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+}
+MAX_CERTIFICATION_FILE_SIZE = 10 * 1024 * 1024
 
 
 def extract_json_object(text):
@@ -578,6 +593,29 @@ def analyze_food_image(uploaded_file):
     return normalized
 
 
+def validate_certification_file(uploaded_file):
+    if not uploaded_file:
+        raise ValueError('Certification document is required.')
+
+    extension = Path(uploaded_file.name).suffix.lower()
+    if extension not in ALLOWED_CERTIFICATION_EXTENSIONS:
+        raise ValueError('Certification must be a PDF, DOC, DOCX, JPG, PNG, or WEBP file.')
+
+    if uploaded_file.size > MAX_CERTIFICATION_FILE_SIZE:
+        raise ValueError('Certification file must be under 10MB.')
+
+    if uploaded_file.content_type and uploaded_file.content_type not in ALLOWED_CERTIFICATION_CONTENT_TYPES:
+        raise ValueError('Certification file type is not supported.')
+
+
+def save_certification_file(uploaded_file):
+    validate_certification_file(uploaded_file)
+    extension = Path(uploaded_file.name).suffix.lower()
+    filename = f'trainer_certifications/{secrets.token_urlsafe(16)}{extension}'
+    saved_path = default_storage.save(filename, ContentFile(uploaded_file.read()))
+    return default_storage.url(saved_path)
+
+
 def save_meal_photo(uploaded_file):
     if not uploaded_file:
         return None
@@ -589,6 +627,189 @@ def save_meal_photo(uploaded_file):
     filename = f'meal_photos/{secrets.token_urlsafe(16)}{extension}'
     saved_path = default_storage.save(filename, ContentFile(uploaded_file.read()))
     return default_storage.url(saved_path)
+
+
+def serialize_trainer_application_row(row):
+    (
+        application_id,
+        user_id,
+        full_name,
+        email,
+        phone,
+        specialties,
+        experience_years,
+        certification_file_url,
+        certification_file_name,
+        bio,
+        application_status,
+        reviewed_by,
+        reviewed_at,
+        created_at,
+    ) = row
+
+    return {
+        'id': application_id,
+        'user_id': user_id,
+        'full_name': full_name,
+        'email': email,
+        'phone': phone,
+        'specialties': specialties,
+        'experience_years': experience_years,
+        'certification_file_url': certification_file_url,
+        'certification_file_name': certification_file_name,
+        'bio': bio,
+        'status': application_status,
+        'reviewed_by': reviewed_by,
+        'reviewed_at': reviewed_at,
+        'created_at': created_at,
+    }
+
+
+@api_view(['GET', 'POST'])
+def trainer_applications(request):
+    if request.method == 'GET':
+        requested_status = request.query_params.get('status')
+        params = []
+        where_clause = ''
+        if requested_status:
+            where_clause = 'WHERE status = %s'
+            params.append(requested_status)
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f'''
+                SELECT
+                    id,
+                    user_id,
+                    full_name,
+                    email,
+                    phone,
+                    specialties,
+                    experience_years,
+                    certification_file_url,
+                    certification_file_name,
+                    bio,
+                    status,
+                    reviewed_by,
+                    reviewed_at,
+                    created_at
+                FROM trainer_applications
+                {where_clause}
+                ORDER BY created_at DESC
+                ''',
+                params,
+            )
+            applications = [serialize_trainer_application_row(row) for row in cursor.fetchall()]
+
+        serializer = TrainerApplicationSerializer(applications, many=True)
+        return Response(serializer.data)
+
+    serializer = TrainerApplicationCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    uploaded_file = request.FILES.get('certification_file') or request.FILES.get('certifications')
+
+    try:
+        certification_file_url = save_certification_file(uploaded_file)
+    except ValueError as error:
+        return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+    user_id = data.get('user_id')
+    normalized_email = data['email'].strip().lower()
+
+    with connection.cursor() as cursor:
+        if user_id:
+            cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
+            if not cursor.fetchone():
+                return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            cursor.execute('SELECT id FROM users WHERE email = %s LIMIT 1', [normalized_email])
+            row = cursor.fetchone()
+            user_id = row[0] if row else None
+
+        cursor.execute(
+            '''
+            INSERT INTO trainer_applications
+                (
+                    user_id,
+                    full_name,
+                    email,
+                    phone,
+                    specialties,
+                    experience_years,
+                    certification_file_url,
+                    certification_file_name,
+                    bio,
+                    status,
+                    created_at
+                )
+            VALUES
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', NOW(6))
+            ''',
+            [
+                user_id,
+                data['full_name'].strip(),
+                normalized_email,
+                data.get('phone') or None,
+                data['specialties'].strip(),
+                data.get('experience_years') or 0,
+                certification_file_url,
+                uploaded_file.name,
+                data.get('bio') or None,
+            ],
+        )
+        application_id = cursor.lastrowid
+
+    return Response(
+        {
+            'detail': 'Trainer application submitted for review.',
+            'application_id': application_id,
+            'status': 'pending',
+            'certification_file_url': certification_file_url,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['POST', 'PATCH'])
+def review_trainer_application(request, application_id):
+    serializer = TrainerApplicationReviewSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    review_status = serializer.validated_data['status']
+    reviewer_id = serializer.validated_data.get('reviewer_id')
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            'SELECT user_id, email FROM trainer_applications WHERE id = %s LIMIT 1',
+            [application_id],
+        )
+        row = cursor.fetchone()
+        if not row:
+            return Response({'detail': 'Trainer application not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        application_user_id, application_email = row
+
+        if reviewer_id:
+            cursor.execute('SELECT id FROM users WHERE id = %s AND role IN (%s, %s) LIMIT 1', [reviewer_id, 'admin', 'owner'])
+            if not cursor.fetchone():
+                return Response({'detail': 'Reviewer must be an admin or owner.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        cursor.execute(
+            '''
+            UPDATE trainer_applications
+            SET status = %s, reviewed_by = %s, reviewed_at = NOW(6)
+            WHERE id = %s
+            ''',
+            [review_status, reviewer_id, application_id],
+        )
+
+        if review_status == 'approved':
+            if application_user_id:
+                cursor.execute('UPDATE users SET role = %s WHERE id = %s', ['trainer', application_user_id])
+            else:
+                cursor.execute('UPDATE users SET role = %s WHERE email = %s', ['trainer', application_email])
+
+    return Response({'detail': f'Trainer application {review_status}.'})
 
 
 @api_view(['GET'])
@@ -656,6 +877,7 @@ def class_list(_request):
                 COUNT(cb.id) AS booked_slots
             FROM classes c
             LEFT JOIN class_bookings cb ON cb.class_id = c.id
+            WHERE c.schedule_time >= NOW()
             GROUP BY c.id, c.title, c.instructor_name, c.room, c.schedule_time, c.slots
             ORDER BY c.schedule_time
             '''
@@ -740,6 +962,7 @@ def user_bookings(_request, user_id):
             FROM class_bookings cb
             INNER JOIN classes c ON c.id = cb.class_id
             WHERE cb.user_id = %s
+                AND c.schedule_time >= NOW()
             ORDER BY c.schedule_time
             ''',
             [user_id],
@@ -972,8 +1195,7 @@ def user_meals(request, user_id):
         if not cursor.fetchone():
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        cursor.execute(
-            '''
+        query = '''
             SELECT
                 id,
                 meal_type,
@@ -986,11 +1208,16 @@ def user_meals(request, user_id):
                 meal_date,
                 created_at
             FROM meals
-            WHERE user_id = %s AND DATE(meal_date) = %s
-            ORDER BY meal_date DESC, created_at DESC
-            ''',
-            [user_id, request.query_params.get('date') or timezone.localdate()],
-        )
+            WHERE user_id = %s
+        '''
+        params = [user_id]
+
+        if request.query_params.get('limit') != 'all':
+            query += ' AND DATE(meal_date) = %s'
+            params.append(request.query_params.get('date') or timezone.localdate())
+
+        query += ' ORDER BY meal_date DESC, created_at DESC'
+        cursor.execute(query, params)
         meals = [
             {
                 'id': meal_id,
@@ -1141,6 +1368,7 @@ def update_meal(request, meal_id=None):
             '''
             UPDATE meals
             SET
+                meal_type = %s,
                 description = %s,
                 calories = %s,
                 protein_g = %s,
@@ -1149,6 +1377,7 @@ def update_meal(request, meal_id=None):
             WHERE id = %s AND user_id = %s
             ''',
             [
+                data.get('meal_type') or 'Meal',
                 data['description'],
                 data['calories'],
                 data.get('protein_g'),

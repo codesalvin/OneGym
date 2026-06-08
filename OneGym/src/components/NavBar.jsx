@@ -33,6 +33,8 @@ export function NavBar() {
       .map((part) => part[0].toUpperCase())
       .join('');
   }, [user]);
+  const dashboardHref = user?.role === 'trainer' ? '/trainer-dashboard' : '/member-dashboard';
+  const dashboardLabel = user?.role === 'trainer' ? 'Trainer Portal' : 'Dashboard';
 
   function handleLogout() {
     localStorage.removeItem('onegymUser');
@@ -73,13 +75,17 @@ export function NavBar() {
               <div className="mega-col">
                 <h4>For Trainers</h4>
                 <p>Digital tools to connect and manage your clients.</p>
-                <a href="#" className="mega-item">
+                <a href="/trainer-dashboard" className="mega-item">
                   <span>Client Manager</span>
                   <small>CRM-style interface to monitor client progress.</small>
                 </a>
-                <a href="#" className="mega-item">
+                <a href="/trainer-dashboard" className="mega-item">
                   <span>Schedule Sync</span>
                   <small>Manage your professional calendar seamlessly.</small>
+                </a>
+                <a href="/join-trainer" className="mega-item">
+                  <span>Join as Trainer</span>
+                  <small>Apply for approval with your certification document.</small>
                 </a>
               </div>
 
@@ -117,7 +123,8 @@ export function NavBar() {
                   <small>{user.email}</small>
                 </div>
               </div>
-              <a href="/member-dashboard">Dashboard</a>
+              <a href={dashboardHref}>{dashboardLabel}</a>
+              {user.role === 'trainer' && <a href="/member-dashboard">Member View</a>}
               <a href="/booking">Book Class</a>
               <a href="/ai-assistant">AI Assistant</a>
               <a href="#">Profile</a>

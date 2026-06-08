@@ -8,6 +8,10 @@ const logoImage = '../images/logo.png';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
+function getDashboardPath(user) {
+  return user?.role === 'trainer' ? '/trainer-dashboard' : '/member-dashboard';
+}
+
 function loadScript(src, id) {
   return new Promise((resolve, reject) => {
     const existingScript = document.getElementById(id);
@@ -132,7 +136,7 @@ export function SignInPage() {
       localStorage.setItem('onegymUser', JSON.stringify(data.user));
       window.dispatchEvent(new Event('onegym-auth-change'));
       setMessage(isLogin ? 'Signed in successfully.' : 'Account created successfully.');
-      navigate('/member-dashboard');
+      navigate(getDashboardPath(data.user));
     } catch (error) {
       setIsError(true);
       setMessage(error.message);
@@ -171,7 +175,7 @@ export function SignInPage() {
 
       localStorage.setItem('onegymUser', JSON.stringify(data.user));
       window.dispatchEvent(new Event('onegym-auth-change'));
-      navigate('/member-dashboard');
+      navigate(getDashboardPath(data.user));
     } catch (error) {
       setIsError(true);
       setMessage(error.message);

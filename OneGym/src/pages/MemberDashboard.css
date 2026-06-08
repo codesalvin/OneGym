@@ -825,7 +825,11 @@
 }
 
 body {
-  background-color: var(--color-surface);
+  background:
+    linear-gradient(rgba(26, 26, 26, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 26, 26, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, #fbfaf7 0%, #f7f6f2 42%, #ffffff 100%);
+  background-size: 44px 44px, 44px 44px, auto;
   color: var(--color-on-background);
   font-family: var(--font-body);
   font-size: 16px;
@@ -1638,12 +1642,23 @@ body {
   background: var(--color-outline);
 }
 
-/* Member dashboard final polish overrides */
 .stats-grid {
   grid-template-columns: repeat(3, minmax(170px, 220px));
   justify-content: center;
   align-self: center;
   width: 100%;
+}
+
+.stat-card {
+  position: relative;
+}
+
+.stat-card-icon {
+  color: #c4c7c7;
+  font-size: 24px;
+  position: absolute;
+  right: 28px;
+  top: 28px;
 }
 
 .activity-item {
@@ -1652,6 +1667,35 @@ body {
 
 .activity-info {
   flex: 1;
+}
+
+.focus-banner {
+  height: 190px;
+  overflow: hidden;
+  position: relative;
+}
+
+.focus-banner-img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.focus-banner-overlay {
+  align-items: flex-end;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent);
+  display: flex;
+  inset: 0;
+  padding: 24px;
+  position: absolute;
+}
+
+.focus-banner-title {
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-style: italic;
 }
 
 .delete-action {
@@ -1825,7 +1869,8 @@ body {
   text-transform: uppercase;
 }
 
-.dashboard-edit-grid input {
+.dashboard-edit-grid input,
+.dashboard-edit-grid select {
   background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.16);
   color: #111111;
@@ -1834,9 +1879,18 @@ body {
   padding: 12px;
 }
 
-.dashboard-edit-grid input:focus {
+.dashboard-edit-grid input:focus,
+.dashboard-edit-grid select:focus {
   border-color: #111111;
   outline: none;
+}
+
+.meal-select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #111 50%), linear-gradient(135deg, #111 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-repeat: no-repeat;
+  background-size: 5px 5px, 5px 5px;
 }
 
 .history-actions {

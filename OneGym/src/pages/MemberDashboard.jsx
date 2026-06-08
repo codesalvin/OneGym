@@ -9,6 +9,12 @@ const PROTEIN_GOAL = 180;
 const CARBS_GOAL = 300;
 const FATS_GOAL = 65;
 const RING_CIRCUMFERENCE = 157;
+const MEAL_TYPES = [
+  { value: 'breakfast', label: 'Breakfast' },
+  { value: 'lunch', label: 'Lunch' },
+  { value: 'dinner', label: 'Dinner' },
+  { value: 'snacks', label: 'Snacks' },
+];
 
 async function readApiResponse(response, requestUrl = response.url) {
   const text = await response.text();
@@ -45,6 +51,21 @@ function formatDashboardDate(value = new Date()) {
   }).format(value).toUpperCase();
 }
 
+function toLocalDateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function addDays(value, days) {
+  const date = new Date(value);
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
 function formatIntensity(value) {
   const labels = {
     low: 'Gentle',
@@ -59,6 +80,11 @@ function getWorkoutId(workout) {
   const value = workout?.id ?? workout?.workout_id;
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function getWorkoutDate(workout) {
+  const date = new Date(workout?.workout_date || workout?.created_at);
+  return Number.isNaN(date.getTime()) ? new Date(0) : date;
 }
 
 function numberField(...values) {
@@ -83,6 +109,15 @@ function formatMacroValue(value) {
   return `${formatWholeNumber(numericValue(value))}g`;
 }
 
+function normalizeMealType(value) {
+  const normalized = String(value || '').toLowerCase();
+  return MEAL_TYPES.some((type) => type.value === normalized) ? normalized : 'breakfast';
+}
+
+function formatMealType(value) {
+  return MEAL_TYPES.find((type) => type.value === normalizeMealType(value))?.label || 'Breakfast';
+}
+
 function resolveMediaUrl(url) {
   if (!url || url === 'camera-capture') {
     return '';
@@ -97,6 +132,7 @@ function resolveMediaUrl(url) {
 }
 
 const emptyMealForm = {
+  mealType: 'breakfast',
   description: '',
   calories: '',
   protein: '',
@@ -129,6 +165,40 @@ export function MemberDashboardPage() {
   const [isAnalyzingMeal, setIsAnalyzingMeal] = useState(false);
   const [isSavingMeal, setIsSavingMeal] = useState(false);
   const [loggedMeals, setLoggedMeals] = useState([]);
+  const workoutStats = useMemo(() => {
+    const uniqueDays = new Set(recentWorkouts.map((workout) => toLocalDateKey(workout.workout_date)).filter(Boolean));
+    const today = new Date();
+    const todayKey = toLocalDateKey(today);
+    let cursor = uniqueDays.has(todayKey) ? today : addDays(today, -1);
+    let currentStreak = 0;
+
+    while (uniqueDays.has(toLocalDateKey(cursor))) {
+      currentStreak += 1;
+      cursor = addDays(cursor, -1);
+    }
+
+    const thirtyDaysAgo = addDays(today, -30);
+    const sixtyDaysAgo = addDays(today, -60);
+    const workoutsLast30 = recentWorkouts.filter((workout) => getWorkoutDate(workout) >= thirtyDaysAgo).length;
+    const workoutsPrevious30 = recentWorkouts.filter((workout) => {
+      const workoutDate = getWorkoutDate(workout);
+      return workoutDate >= sixtyDaysAgo && workoutDate < thirtyDaysAgo;
+    }).length;
+    const totalMinutes = recentWorkouts.reduce((total, workout) => total + numericValue(workout.duration_minutes), 0);
+    const hoursTrained = totalMinutes / 60;
+    const trendPercent = workoutsPrevious30 > 0
+      ? Math.round(((workoutsLast30 - workoutsPrevious30) / workoutsPrevious30) * 100)
+      : workoutsLast30 > 0 ? 100 : 0;
+
+    return {
+      currentStreak,
+      workoutsLast30,
+      hoursTrained,
+      trendPercent,
+      streakProgress: Math.min(100, (currentStreak / 7) * 100),
+    };
+  }, [recentWorkouts]);
+  const visibleRecentWorkouts = useMemo(() => recentWorkouts.slice(0, 5), [recentWorkouts]);
   const nutritionDate = useMemo(() => formatDashboardDate(), []);
   const nutritionTotals = useMemo(() => {
     const consumed = loggedMeals.reduce(
@@ -165,7 +235,7 @@ export function MemberDashboardPage() {
       return;
     }
 
-    fetch(`${API_BASE_URL}/users/${user.id}/workouts/`)
+    fetch(`${API_BASE_URL}/users/${user.id}/workouts/?limit=all`)
       .then((response) => {
         if (!response.ok) {
           throw new Error('Unable to load recent workouts.');
@@ -267,6 +337,7 @@ export function MemberDashboardPage() {
     setEditingMeal({
       id: mealId,
       description: meal.description || 'Meal',
+      mealType: normalizeMealType(meal.meal_type),
       calories: numberField(meal.calories),
       protein: numberField(meal.protein_g),
       carbs: numberField(meal.carbs_g),
@@ -308,6 +379,7 @@ export function MemberDashboardPage() {
         body: JSON.stringify({
           user_id: user.id,
           meal_id: editingMeal.id,
+          meal_type: editingMeal.mealType,
           description: editingMeal.description.trim(),
           calories: Number(editingMeal.calories),
           protein_g: Number(editingMeal.protein || 0),
@@ -485,7 +557,7 @@ export function MemberDashboardPage() {
       const endpoint = `${API_BASE_URL}/meals/`;
       const formData = new FormData();
       formData.append('user_id', user.id);
-      formData.append('meal_type', 'Quick Log');
+      formData.append('meal_type', mealForm.mealType);
       formData.append('description', mealForm.description.trim());
       formData.append('calories', Number(mealForm.calories));
 
@@ -561,30 +633,33 @@ export function MemberDashboardPage() {
         <section className="stats-grid">
           <div className="stat-card">
             <h3 className="stat-card-label">Current Streak</h3>
+            <span className="stat-card-icon material-symbols-outlined" aria-hidden="true">local_fire_department</span>
             <div className="stat-value-group">
-              <span className="stat-value">12</span>
+              <span className="stat-value">{workoutStats.currentStreak}</span>
               <span className="stat-unit">Days</span>
             </div>
             <div className="stat-progress-bar">
-              <div className="progress-fill" style={{ width: '80%' }}></div>
+              <div className="progress-fill" style={{ width: `${workoutStats.streakProgress}%` }}></div>
             </div>
           </div>
 
           <div className="stat-card">
             <h3 className="stat-card-label">Workouts (30d)</h3>
             <div className="stat-value-group">
-              <span className="stat-value">24</span>
+              <span className="stat-value">{workoutStats.workoutsLast30}</span>
             </div>
             <p className="stat-trend">
-              <span className="material-symbols-outlined icon-inline">trending_up</span>
-              +15% vs last month
+              <span className="material-symbols-outlined icon-inline">
+                {workoutStats.trendPercent >= 0 ? 'trending_up' : 'trending_down'}
+              </span>
+              {workoutStats.trendPercent >= 0 ? '+' : ''}{workoutStats.trendPercent}% vs last month
             </p>
           </div>
 
           <div className="stat-card stat-card-chart">
             <h3 className="stat-card-label">Hours Trained</h3>
             <div className="stat-value-group val-margin">
-              <span className="stat-value">36.5</span>
+              <span className="stat-value">{workoutStats.hoursTrained.toFixed(1)}</span>
             </div>
             <div className="chart-wrapper">
               <svg preserveAspectRatio="none" className="chart-svg" viewBox="0 0 100 40">
@@ -674,8 +749,8 @@ export function MemberDashboardPage() {
                 <div className="activity-empty">No workouts logged yet.</div>
               )}
 
-              {recentWorkouts.map((workout, index) => (
-                <div className={`activity-item ${index === recentWorkouts.length - 1 ? 'item-noborder' : ''}`} key={getWorkoutId(workout) || workout.name}>
+              {visibleRecentWorkouts.map((workout, index) => (
+                <div className={`activity-item ${index === visibleRecentWorkouts.length - 1 ? 'item-noborder' : ''}`} key={getWorkoutId(workout) || workout.name}>
                   <div className="activity-icon">
                     <span className="material-symbols-outlined icon-activity">fitness_center</span>
                   </div>
@@ -712,7 +787,7 @@ export function MemberDashboardPage() {
             <h2 className="section-title">Nutrition &amp; Calorie Logger</h2>
             <div className="history-actions">
               <span className="nutrition-current-date">{nutritionDate}</span>
-              <button className="btn-history">View History</button>
+              <button className="btn-history" onClick={() => { window.location.href = '/meal-history'; }}>View History</button>
               <a className="btn btn-outline btn-sm ai-btn" href="/ai-assistant">
                 <span className="material-symbols-outlined icon-ai">smart_toy</span>
                 <span>Consult AI Assistant</span>
@@ -821,7 +896,8 @@ export function MemberDashboardPage() {
                               </div>
                             )}
                             <div>
-                              <div className="meal-type">{meal.description}</div>
+                              <div className="meal-type">{formatMealType(meal.meal_type)}</div>
+                              <div className="meal-desc">{meal.description}</div>
                               <div className="meal-macros">
                                 <span>Protein {formatMacroValue(meal.protein_g)}</span>
                                 <span>Carbs {formatMacroValue(meal.carbs_g)}</span>
@@ -867,6 +943,20 @@ export function MemberDashboardPage() {
                   {mealMessage}
                 </p>
               )}
+              <div className="input-group">
+                <label htmlFor="meal-type">Meal Type</label>
+                <select
+                  className="text-input meal-select"
+                  id="meal-type"
+                  name="mealType"
+                  onChange={updateMealField}
+                  value={mealForm.mealType}
+                >
+                  {MEAL_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
               <div className="input-group">
                 <label htmlFor="food-name">Meal Description</label>
                 <input
@@ -952,6 +1042,14 @@ export function MemberDashboardPage() {
                   Adjust the nutrition values for <strong>{editingMeal.description}</strong>.
                 </p>
                 <div className="dashboard-edit-grid">
+                  <label>
+                    Meal Type
+                    <select name="mealType" onChange={updateMealEditField} value={editingMeal.mealType}>
+                      {MEAL_TYPES.map((type) => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </label>
                   <label>
                     Calories
                     <input min="0" name="calories" onChange={updateMealEditField} required type="number" value={editingMeal.calories} />

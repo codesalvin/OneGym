@@ -8,6 +8,12 @@ const PROTEIN_GOAL = 180;
 const CARBS_GOAL = 300;
 const FATS_GOAL = 65;
 const RING_CIRCUMFERENCE = 540;
+const MEAL_TYPES = [
+  { value: 'breakfast', label: 'Breakfast' },
+  { value: 'lunch', label: 'Lunch' },
+  { value: 'dinner', label: 'Dinner' },
+  { value: 'snacks', label: 'Snacks' },
+];
 
 async function readApiResponse(response) {
   const text = await response.text();
@@ -33,6 +39,15 @@ function clampPercent(value) {
 
 function formatWholeNumber(value) {
   return Math.round(value).toLocaleString('en-US');
+}
+
+function normalizeMealType(value) {
+  const normalized = String(value || '').toLowerCase();
+  return MEAL_TYPES.some((type) => type.value === normalized) ? normalized : 'dinner';
+}
+
+function formatMealType(value) {
+  return MEAL_TYPES.find((type) => type.value === normalizeMealType(value))?.label || 'Dinner';
 }
 
 function buildIntroMessage(displayName, totals, mealCount) {
@@ -89,6 +104,7 @@ function buildMealFromRecommendation(message) {
   const calories = Math.round(protein * 4 + carbs * 4 + fats * 9);
 
   return {
+    mealType: 'dinner',
     description: recipeCard?.title || 'AI recommended meal',
     calories,
     protein,
@@ -227,7 +243,7 @@ export function AiAssistantPage() {
 
   function isRecommendationAdded(message) {
     const description = getRecommendationDescription(message);
-    return loggedMeals.some((meal) => meal.meal_type === 'AI Recommendation' && meal.description === description);
+    return loggedMeals.some((meal) => meal.description === description);
   }
 
   const introMessage = useMemo(() => {
@@ -335,6 +351,7 @@ export function AiAssistantPage() {
     setEditingMeal({
       id: meal.id,
       description: meal.name,
+      mealType: normalizeMealType(meal.mealType),
       calories: String(meal.calories),
       protein: String(meal.protein),
       carbs: String(meal.carbs),
@@ -347,6 +364,13 @@ export function AiAssistantPage() {
     setEditingMeal((current) => ({
       ...current,
       [name]: value,
+    }));
+  }
+
+  function updatePendingMealType(event) {
+    setPendingMeal((current) => ({
+      ...current,
+      mealType: event.target.value,
     }));
   }
 
@@ -366,7 +390,7 @@ export function AiAssistantPage() {
         },
         body: JSON.stringify({
           user_id: user.id,
-          meal_type: 'AI Recommendation',
+          meal_type: pendingMeal.mealType,
           description: pendingMeal.description,
           calories: pendingMeal.calories,
           protein_g: pendingMeal.protein,
@@ -424,6 +448,7 @@ export function AiAssistantPage() {
         body: JSON.stringify({
           user_id: user.id,
           meal_id: editingMeal.id,
+          meal_type: editingMeal.mealType,
           description: editingMeal.description.trim(),
           calories: Number(editingMeal.calories),
           protein_g: Number(editingMeal.protein),
@@ -546,6 +571,7 @@ export function AiAssistantPage() {
                   )}
                   <div>
                     <h3>{meal.name}</h3>
+                    <span className="ai-meal-type">{formatMealType(meal.mealType)}</span>
                     <p>{meal.macros}</p>
                   </div>
                 </div>
@@ -679,6 +705,14 @@ export function AiAssistantPage() {
                 </p>
                 <div className="ai-edit-grid">
                   <label>
+                    Meal Type
+                    <select name="mealType" onChange={updateMealEditField} value={editingMeal.mealType}>
+                      {MEAL_TYPES.map((type) => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
                     Calories
                     <input min="0" name="calories" onChange={updateMealEditField} required type="number" value={editingMeal.calories} />
                   </label>
@@ -705,11 +739,21 @@ export function AiAssistantPage() {
                 </div>
               </form>
             ) : pendingMeal ? (
-              <p>
-                Add <strong>{pendingMeal.description}</strong> as {formatWholeNumber(pendingMeal.calories)} kcal,
-                {' '}{formatWholeNumber(pendingMeal.protein)}g protein,
-                {' '}{formatWholeNumber(pendingMeal.carbs)}g carbs, and {formatWholeNumber(pendingMeal.fats)}g fats?
-              </p>
+              <>
+                <p>
+                  Add <strong>{pendingMeal.description}</strong> as {formatWholeNumber(pendingMeal.calories)} kcal,
+                  {' '}{formatWholeNumber(pendingMeal.protein)}g protein,
+                  {' '}{formatWholeNumber(pendingMeal.carbs)}g carbs, and {formatWholeNumber(pendingMeal.fats)}g fats?
+                </p>
+                <label className="ai-modal-select-label">
+                  Meal Type
+                  <select onChange={updatePendingMealType} value={pendingMeal.mealType}>
+                    {MEAL_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>{type.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
             ) : pendingDeleteMeal ? (
               <p>
                 Delete <strong>{pendingDeleteMeal.name}</strong> from today's meals? This will also update your calories and macros.

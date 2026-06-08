@@ -6,6 +6,7 @@ class User(models.Model):
         ('member', 'Member'),
         ('trainer', 'Trainer'),
         ('admin', 'Admin'),
+        ('owner', 'Owner'),
     ]
 
     id = models.AutoField(primary_key=True)
@@ -119,3 +120,32 @@ class Meal(models.Model):
 
     def __str__(self):
         return f'{self.meal_type}: {self.description}'
+
+
+class TrainerApplication(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    user = models.ForeignKey(User, models.SET_NULL, db_column='user_id', blank=True, null=True, related_name='trainer_applications')
+    full_name = models.CharField(max_length=150)
+    email = models.EmailField(max_length=254)
+    phone = models.CharField(max_length=40, blank=True, null=True)
+    specialties = models.CharField(max_length=255)
+    experience_years = models.PositiveIntegerField(default=0)
+    certification_file_url = models.CharField(max_length=255)
+    certification_file_name = models.CharField(max_length=255)
+    bio = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    reviewed_by = models.ForeignKey(User, models.SET_NULL, db_column='reviewed_by', blank=True, null=True, related_name='reviewed_trainer_applications')
+    reviewed_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'trainer_applications'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.full_name} ({self.status})'
