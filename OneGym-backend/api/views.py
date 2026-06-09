@@ -12,8 +12,9 @@ import requests as http_requests
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from datetime import timedelta
+from datetime import datetime, timedelta
 import base64
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -22,6 +23,7 @@ import secrets
 from .models import PasswordResetCode
 from .serializers import (
     ClassBookingSerializer,
+    FitnessClassCreateSerializer,
     FitnessClassSerializer,
     MealCreateSerializer,
     MealSummarySerializer,
@@ -33,6 +35,8 @@ from .serializers import (
     TrainerApplicationCreateSerializer,
     TrainerApplicationReviewSerializer,
     TrainerApplicationSerializer,
+    TrainerChatConversationSerializer,
+    TrainerChatMessageSerializer,
     UserSerializer,
     WorkoutCreateSerializer,
     WorkoutSummarySerializer,
@@ -49,6 +53,7 @@ ALLOWED_CERTIFICATION_CONTENT_TYPES = {
     'image/webp',
 }
 MAX_CERTIFICATION_FILE_SIZE = 10 * 1024 * 1024
+AUTH_TOKEN_LIFETIME = timedelta(days=30)
 
 
 def extract_json_object(text):
@@ -429,6 +434,43 @@ def serialize_ai_chat_row(row):
     }
 
 
+def serialize_trainer_chat_row(row):
+    (
+        message_id,
+        sender_id,
+        sender_name,
+        recipient_id,
+        recipient_name,
+        body,
+        read_at,
+        created_at,
+    ) = row
+
+    return {
+        'id': message_id,
+        'sender_id': sender_id,
+        'sender_name': sender_name,
+        'recipient_id': recipient_id,
+        'recipient_name': recipient_name,
+        'body': body,
+        'read_at': read_at,
+        'created_at': created_at,
+    }
+
+
+def serialize_trainer_conversation_row(row):
+    user_id, username, email, role, last_message, last_message_at, unread_count = row
+    return {
+        'user_id': user_id,
+        'username': username,
+        'email': email,
+        'role': role,
+        'last_message': last_message,
+        'last_message_at': last_message_at,
+        'unread_count': unread_count,
+    }
+
+
 def parse_assistant_reply(content):
     try:
         data = extract_json_object(content)
@@ -474,6 +516,198 @@ def user_ai_chat_messages(_request, user_id):
         messages = [serialize_ai_chat_row(row) for row in cursor.fetchall()]
 
     return Response(messages)
+
+
+@api_view(['GET'])
+def user_trainer_chat_messages(request, user_id):
+    trainer_id = request.query_params.get('trainer_id')
+    if not trainer_id:
+        return Response({'detail': 'Trainer id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        member_id = int(user_id)
+        trainer_id = int(trainer_id)
+    except (TypeError, ValueError):
+        return Response({'detail': 'Invalid conversation users.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if actor['role'] not in ['admin', 'owner'] and actor['id'] not in [member_id, trainer_id]:
+        return Response({'detail': 'You cannot view this conversation.'}, status=status.HTTP_403_FORBIDDEN)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT id, username, role
+            FROM users
+            WHERE id IN (%s, %s)
+            ''',
+            [member_id, trainer_id],
+        )
+        users = {row[0]: {'username': row[1], 'role': row[2]} for row in cursor.fetchall()}
+        if member_id not in users or trainer_id not in users:
+            return Response({'detail': 'Conversation user not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if users[member_id]['role'] != 'member' or users[trainer_id]['role'] != 'trainer':
+            return Response({'detail': 'Trainer chat must be between a member and a trainer.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        cursor.execute(
+            '''
+            SELECT
+                message.id,
+                message.sender_id,
+                sender.username AS sender_name,
+                message.recipient_id,
+                recipient.username AS recipient_name,
+                message.body,
+                message.read_at,
+                message.created_at
+            FROM trainer_chat_messages message
+            INNER JOIN users sender ON sender.id = message.sender_id
+            INNER JOIN users recipient ON recipient.id = message.recipient_id
+            WHERE (
+                message.sender_id = %s AND message.recipient_id = %s
+            ) OR (
+                message.sender_id = %s AND message.recipient_id = %s
+            )
+            ORDER BY message.created_at ASC, message.id ASC
+            LIMIT 120
+            ''',
+            [member_id, trainer_id, trainer_id, member_id],
+        )
+        messages = [serialize_trainer_chat_row(row) for row in cursor.fetchall()]
+
+        cursor.execute(
+            '''
+            UPDATE trainer_chat_messages
+            SET read_at = NOW(6)
+            WHERE recipient_id = %s
+                AND sender_id = %s
+                AND read_at IS NULL
+            ''',
+            [actor['id'], trainer_id if actor['id'] == member_id else member_id],
+        )
+
+    serializer = TrainerChatMessageSerializer(messages, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def trainer_chat_conversations(request):
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if actor['role'] not in ['trainer', 'admin', 'owner']:
+        return Response({'detail': 'Only trainers can view trainer conversations.'}, status=status.HTTP_403_FORBIDDEN)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT
+                other_user.id,
+                other_user.username,
+                other_user.email,
+                other_user.role,
+                latest.body AS last_message,
+                latest.created_at AS last_message_at,
+                COALESCE(unread.unread_count, 0) AS unread_count
+            FROM trainer_chat_messages latest
+            INNER JOIN (
+                SELECT
+                    CASE
+                        WHEN sender_id = %s THEN recipient_id
+                        ELSE sender_id
+                    END AS other_user_id,
+                    MAX(id) AS latest_id
+                FROM trainer_chat_messages
+                WHERE sender_id = %s OR recipient_id = %s
+                GROUP BY other_user_id
+            ) grouped ON grouped.latest_id = latest.id
+            INNER JOIN users other_user ON other_user.id = grouped.other_user_id
+            LEFT JOIN (
+                SELECT sender_id, COUNT(*) AS unread_count
+                FROM trainer_chat_messages
+                WHERE recipient_id = %s
+                    AND read_at IS NULL
+                GROUP BY sender_id
+            ) unread ON unread.sender_id = other_user.id
+            ORDER BY latest.created_at DESC, latest.id DESC
+            LIMIT 60
+            ''',
+            [actor['id'], actor['id'], actor['id'], actor['id']],
+        )
+        conversations = [serialize_trainer_conversation_row(row) for row in cursor.fetchall()]
+
+    serializer = TrainerChatConversationSerializer(conversations, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+def trainer_chat_message(request):
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    recipient_id = request.data.get('recipient_id')
+    body = (request.data.get('body') or '').strip()
+    if not recipient_id:
+        return Response({'detail': 'Recipient id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not body:
+        return Response({'detail': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        recipient_id = int(recipient_id)
+    except (TypeError, ValueError):
+        return Response({'detail': 'Recipient id is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id, username, role FROM users WHERE id = %s LIMIT 1', [recipient_id])
+        recipient = cursor.fetchone()
+        if not recipient:
+            return Response({'detail': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        valid_pair = (
+            actor['role'] == 'member' and recipient[2] == 'trainer'
+        ) or (
+            actor['role'] == 'trainer' and recipient[2] == 'member'
+        )
+        if actor['role'] not in ['admin', 'owner'] and not valid_pair:
+            return Response({'detail': 'Trainer chat must be between a member and a trainer.'}, status=status.HTTP_403_FORBIDDEN)
+
+        cursor.execute(
+            '''
+            INSERT INTO trainer_chat_messages (sender_id, recipient_id, body, created_at)
+            VALUES (%s, %s, %s, NOW(6))
+            ''',
+            [actor['id'], recipient_id, body],
+        )
+        message_id = cursor.lastrowid
+
+        cursor.execute(
+            '''
+            SELECT
+                message.id,
+                message.sender_id,
+                sender.username AS sender_name,
+                message.recipient_id,
+                recipient.username AS recipient_name,
+                message.body,
+                message.read_at,
+                message.created_at
+            FROM trainer_chat_messages message
+            INNER JOIN users sender ON sender.id = message.sender_id
+            INNER JOIN users recipient ON recipient.id = message.recipient_id
+            WHERE message.id = %s
+            LIMIT 1
+            ''',
+            [message_id],
+        )
+        message = serialize_trainer_chat_row(cursor.fetchone())
+
+    serializer = TrainerChatMessageSerializer(message)
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
@@ -862,29 +1096,86 @@ def user_detail(_request, user_id):
     return Response(serializer.data)
 
 
-@api_view(['GET'])
-def class_list(_request):
+@api_view(['GET', 'POST'])
+def class_list(request):
+    if request.method == 'POST':
+        user = get_authenticated_user(request)
+        if not user:
+            return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if user['role'] not in ['trainer', 'admin', 'owner']:
+            return Response({'detail': 'Only approved trainers can create classes.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = FitnessClassCreateSerializer(data={
+            **request.data,
+            'trainer_id': user['id'],
+        })
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        raw_schedule_time = str(request.data.get('schedule_time') or '')
+
+        try:
+            local_schedule_time = datetime.fromisoformat(raw_schedule_time)
+        except ValueError:
+            return Response({'detail': 'Class time is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if local_schedule_time.tzinfo is not None:
+            local_schedule_time = timezone.localtime(local_schedule_time).replace(tzinfo=None)
+
+        if local_schedule_time <= datetime.now():
+            return Response({'detail': 'Class time must be in the future.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                '''
+                INSERT INTO classes
+                    (trainer_id, title, instructor_name, room, schedule_time, slots)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s)
+                ''',
+                [
+                    user['id'],
+                    data['title'],
+                    user['username'],
+                    data['room'],
+                    local_schedule_time,
+                    data['slots'],
+                ],
+            )
+            class_id = cursor.lastrowid
+
+        return Response(
+            {
+                'detail': 'Class created successfully.',
+                'class_id': class_id,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
     with connection.cursor() as cursor:
         cursor.execute(
             '''
             SELECT
                 c.id,
+                c.trainer_id,
                 c.title,
-                c.instructor_name,
+                COALESCE(u.username, c.instructor_name) AS instructor_name,
                 c.room,
                 c.schedule_time,
                 c.slots,
                 COUNT(cb.id) AS booked_slots
             FROM classes c
+            LEFT JOIN users u ON u.id = c.trainer_id
             LEFT JOIN class_bookings cb ON cb.class_id = c.id
             WHERE c.schedule_time >= NOW()
-            GROUP BY c.id, c.title, c.instructor_name, c.room, c.schedule_time, c.slots
+            GROUP BY c.id, c.trainer_id, c.title, u.username, c.instructor_name, c.room, c.schedule_time, c.slots
             ORDER BY c.schedule_time
             '''
         )
         classes = [
             {
                 'id': class_id,
+                'trainer_id': trainer_id,
                 'title': title,
                 'instructor_name': instructor_name,
                 'room': room,
@@ -893,7 +1184,7 @@ def class_list(_request):
                 'booked_slots': booked_slots,
                 'available_slots': max(slots - booked_slots, 0),
             }
-            for class_id, title, instructor_name, room, schedule_time, slots, booked_slots in cursor.fetchall()
+            for class_id, trainer_id, title, instructor_name, room, schedule_time, slots, booked_slots in cursor.fetchall()
         ]
 
     serializer = FitnessClassSerializer(classes, many=True)
@@ -948,8 +1239,9 @@ def user_bookings(_request, user_id):
             SELECT
                 cb.id,
                 c.id AS class_id,
+                c.trainer_id,
                 c.title,
-                c.instructor_name,
+                COALESCE(u.username, c.instructor_name) AS instructor_name,
                 c.room,
                 c.schedule_time,
                 c.slots,
@@ -961,6 +1253,7 @@ def user_bookings(_request, user_id):
                 cb.booked_at
             FROM class_bookings cb
             INNER JOIN classes c ON c.id = cb.class_id
+            LEFT JOIN users u ON u.id = c.trainer_id
             WHERE cb.user_id = %s
                 AND c.schedule_time >= NOW()
             ORDER BY c.schedule_time
@@ -971,6 +1264,7 @@ def user_bookings(_request, user_id):
             {
                 'id': booking_id,
                 'class_id': class_id,
+                'trainer_id': trainer_id,
                 'title': title,
                 'instructor_name': instructor_name,
                 'room': room,
@@ -983,6 +1277,7 @@ def user_bookings(_request, user_id):
             for (
                 booking_id,
                 class_id,
+                trainer_id,
                 title,
                 instructor_name,
                 room,
@@ -1429,6 +1724,64 @@ def password_matches(raw_password, stored_password):
     return check_password(raw_password, stored_password)
 
 
+def hash_token(token):
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
+def create_auth_token(user_id):
+    token = secrets.token_urlsafe(48)
+    expires_at = timezone.now() + AUTH_TOKEN_LIFETIME
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            INSERT INTO auth_tokens (user_id, token_hash, expires_at, created_at)
+            VALUES (%s, %s, %s, NOW(6))
+            ''',
+            [user_id, hash_token(token), expires_at],
+        )
+
+    return token
+
+
+def get_authenticated_user(request):
+    header = request.headers.get('Authorization', '')
+    prefix = 'Bearer '
+    if not header.startswith(prefix):
+        return None
+
+    token = header[len(prefix):].strip()
+    if not token:
+        return None
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT u.id, u.username, u.email, u.role, u.created_at
+            FROM auth_tokens t
+            INNER JOIN users u ON u.id = t.user_id
+            WHERE t.token_hash = %s
+                AND t.expires_at > NOW(6)
+                AND t.revoked_at IS NULL
+            LIMIT 1
+            ''',
+            [hash_token(token)],
+        )
+        row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    user_id, username, email, role, created_at = row
+    return {
+        'id': user_id,
+        'username': username,
+        'email': email,
+        'role': role,
+        'created_at': created_at,
+    }
+
+
 def generate_username(email, preferred_name=''):
     base = (preferred_name or email.split('@')[0]).strip().lower()
     base = ''.join(character for character in base if character.isalnum() or character in ['_', '-'])
@@ -1558,6 +1911,7 @@ def sign_up(request):
 
     return Response(
         {
+            'token': create_auth_token(user_id),
             'user': {
                 'id': user_id,
                 'username': username,
@@ -1599,6 +1953,7 @@ def sign_in(request):
         )
 
     return Response({
+        'token': create_auth_token(user_id),
         'user': {
             'id': user_id,
             'username': username,
@@ -1628,7 +1983,10 @@ def social_auth(request):
         )
 
     user = get_or_create_social_user(profile['email'], profile.get('name', ''))
-    return Response({'user': user})
+    return Response({
+        'token': create_auth_token(user['id']),
+        'user': user,
+    })
 
 
 def generate_reset_code():

@@ -12,7 +12,7 @@
     --dark: #111111;
     --mid: #444444;
     --muted: #888888;
-    --bg: #f7f6f2;
+    --bg: #ffffff;
     --white: #ffffff;
     --border: #e2e0d9;
     --radius: 6px;
@@ -26,11 +26,7 @@
 
   body {
     font-family: var(--sans);
-    background:
-      linear-gradient(rgba(26, 26, 26, 0.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(26, 26, 26, 0.035) 1px, transparent 1px),
-      linear-gradient(180deg, #fbfaf7 0%, #f7f6f2 42%, #ffffff 100%);
-    background-size: 44px 44px, 44px 44px, auto;
+    background: #ffffff;
     color: var(--dark);
     font-size: 15px;
     line-height: 1.6;

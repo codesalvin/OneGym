@@ -43,6 +43,31 @@ function formatActivityTime(value) {
   }).format(new Date(value));
 }
 
+function formatClassTime(value) {
+  return new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(value));
+}
+
+function formatClassDay(value) {
+  const date = new Date(value);
+  const today = new Date();
+  const tomorrow = addDays(today, 1);
+  if (toLocalDateKey(date) === toLocalDateKey(today)) {
+    return 'Today';
+  }
+  if (toLocalDateKey(date) === toLocalDateKey(tomorrow)) {
+    return 'Tomorrow';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+}
+
 function formatDashboardDate(value = new Date()) {
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -165,6 +190,9 @@ export function MemberDashboardPage() {
   const [isAnalyzingMeal, setIsAnalyzingMeal] = useState(false);
   const [isSavingMeal, setIsSavingMeal] = useState(false);
   const [loggedMeals, setLoggedMeals] = useState([]);
+  const [upcomingClasses, setUpcomingClasses] = useState([]);
+  const [bookedClassIds, setBookedClassIds] = useState(() => new Set());
+  const [classesMessage, setClassesMessage] = useState('');
   const workoutStats = useMemo(() => {
     const uniqueDays = new Set(recentWorkouts.map((workout) => toLocalDateKey(workout.workout_date)).filter(Boolean));
     const today = new Date();
@@ -228,6 +256,52 @@ export function MemberDashboardPage() {
       fatsPercent: clampPercent((consumed.fats / FATS_GOAL) * 100),
     };
   }, [loggedMeals]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/classes/`)
+      .then(async (response) => {
+        const data = await readApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.detail || 'Unable to load upcoming classes.');
+        }
+
+        return data;
+      })
+      .then((data) => {
+        setUpcomingClasses(Array.isArray(data) ? data.slice(0, 2) : []);
+        setClassesMessage('');
+      })
+      .catch((error) => {
+        setUpcomingClasses([]);
+        setClassesMessage(error.message);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setBookedClassIds(new Set());
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/users/${user.id}/bookings/`)
+      .then(async (response) => {
+        const data = await readApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.detail || 'Unable to load bookings.');
+        }
+
+        return data;
+      })
+      .then((data) => {
+        const classIds = Array.isArray(data)
+          ? data.map((booking) => Number(booking.class_id)).filter(Number.isFinite)
+          : [];
+        setBookedClassIds(new Set(classIds));
+      })
+      .catch(() => {
+        setBookedClassIds(new Set());
+      });
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -699,7 +773,52 @@ export function MemberDashboardPage() {
               </a>
             </div>
 
-            <div className="classes-grid">
+            <div className="classes-grid live-classes-grid">
+              {classesMessage && (
+                <div className="class-card class-empty-card">{classesMessage}</div>
+              )}
+
+              {!classesMessage && upcomingClasses.length === 0 && (
+                <div className="class-card class-empty-card">No upcoming classes available.</div>
+              )}
+
+              {!classesMessage && upcomingClasses.map((item, index) => (
+                <div className="class-card live-class-card" key={item.id}>
+                  <div className="class-card-top">
+                    <span className={`class-time-badge ${index > 0 ? 'class-time-outline' : ''}`}>
+                      {formatClassTime(item.schedule_time)} {formatClassDay(item.schedule_time).toUpperCase()}
+                    </span>
+                    {index === 0 && <span className="material-symbols-outlined icon-muted">timer</span>}
+                  </div>
+                  <div>
+                    <h4 className="class-title">{item.title}</h4>
+                    <p className="class-meta">{item.room} • {item.instructor_name}</p>
+                  </div>
+                  <div className="class-card-footer">
+                    <div className="spots-left">
+                      <span className="material-symbols-outlined icon-sm">group</span> {item.available_slots} spots left
+                    </div>
+                    <div className="class-action-group">
+                      <button
+                        className={`btn ${bookedClassIds.has(Number(item.id)) ? 'btn-outline' : 'btn-primary'} btn-sm`}
+                        disabled={bookedClassIds.has(Number(item.id))}
+                        onClick={() => { window.location.href = '/booking'; }}
+                      >
+                        {bookedClassIds.has(Number(item.id)) ? 'Booked' : 'Book'}
+                      </button>
+                      <button
+                        className="btn btn-outline btn-sm chat-trainer-btn"
+                        type="button"
+                        onClick={() => {
+                          window.location.href = item.trainer_id ? `/trainer-chat?trainerId=${item.trainer_id}` : '/trainer-chat';
+                        }}
+                      >
+                        Chat
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
               <div className="class-card">
                 <div className="class-card-top">
                   <span className="class-time-badge">17:30 TODAY</span>

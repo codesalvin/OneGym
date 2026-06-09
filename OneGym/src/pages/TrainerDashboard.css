@@ -47,10 +47,14 @@
   gap: 6px;
 }
 
-.trainer-sidebar nav a {
+.trainer-sidebar nav button {
   align-items: center;
+  background: transparent;
+  border: 0;
   color: #444748;
+  cursor: pointer;
   display: flex;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 800;
   gap: 13px;
@@ -58,15 +62,43 @@
   padding: 13px 12px;
   text-decoration: none;
   text-transform: uppercase;
+  width: 100%;
 }
 
-.trainer-sidebar nav a.active,
-.trainer-sidebar nav a:hover {
+.trainer-nav-with-badge {
+  position: relative;
+}
+
+.trainer-nav-with-badge strong,
+.trainer-icon-with-badge strong,
+.trainer-message-count {
+  align-items: center;
+  background: #d71920;
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 900;
+  height: 20px;
+  justify-content: center;
+  letter-spacing: 0;
+  min-width: 20px;
+  padding: 0 6px;
+}
+
+.trainer-nav-with-badge strong {
+  margin-left: auto;
+}
+
+.trainer-sidebar nav button.active,
+.trainer-sidebar nav button:hover,
+.trainer-sidebar nav button:focus-visible {
   background: #f4f4f4;
   color: #1a1a1a;
+  outline: 0;
 }
 
-.trainer-sidebar nav a.active {
+.trainer-sidebar nav button.active {
   border-left: 2px solid #1a1a1a;
 }
 
@@ -74,7 +106,7 @@
   font-size: 21px;
 }
 
-.trainer-sidebar button,
+.trainer-sidebar > button,
 .trainer-section-title button,
 .trainer-session-row button,
 .trainer-program-grid-real button {
@@ -93,16 +125,19 @@
   text-transform: uppercase;
 }
 
-.trainer-sidebar button {
+.trainer-sidebar > button {
   margin-top: auto;
   width: 100%;
 }
 
 .trainer-main {
-  margin-left: 260px;
+  margin-left: auto;
+  margin-right: auto;
   max-width: 1360px;
   min-height: 100vh;
   padding: 30px 54px 90px;
+  width: calc(100% - 260px);
+  transform: translateX(130px);
 }
 
 .trainer-topbar {
@@ -168,6 +203,16 @@
   width: 42px;
 }
 
+.trainer-icon-with-badge {
+  position: relative;
+}
+
+.trainer-icon-with-badge strong {
+  position: absolute;
+  right: -7px;
+  top: -8px;
+}
+
 .trainer-avatar {
   align-items: center;
   background: #1a1a1a;
@@ -189,10 +234,24 @@
   margin-bottom: 34px;
 }
 
+.trainer-dashboard-alert {
+  background: rgba(254, 242, 242, 0.94);
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  text-transform: uppercase;
+}
+
 .trainer-kpi-grid article,
 .trainer-spotlight-card,
 .trainer-schedule-panel,
+.trainer-create-class-section,
 .trainer-clients-section,
+.trainer-messages-section,
 .trainer-programs-section {
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid #dadada;
@@ -257,6 +316,82 @@
   gap: 24px;
   grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
   margin-bottom: 38px;
+}
+
+.trainer-create-class-section {
+  margin-bottom: 34px;
+  padding: 28px;
+}
+
+.trainer-create-class-form {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.8fr) minmax(190px, 1fr) minmax(90px, 0.45fr) auto;
+}
+
+.trainer-create-class-form label {
+  color: #747878;
+  display: grid;
+  font-size: 10px;
+  font-weight: 800;
+  gap: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.trainer-create-class-form input {
+  background: #ffffff;
+  border: 1px solid #dadada;
+  color: #1a1a1a;
+  font: inherit;
+  letter-spacing: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  text-transform: none;
+}
+
+.trainer-create-class-form input:focus {
+  border-color: #1a1a1a;
+  outline: 0;
+}
+
+.trainer-create-class-form button {
+  align-items: center;
+  background: #1a1a1a;
+  border: 1px solid #1a1a1a;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  letter-spacing: 0.14em;
+  min-height: 44px;
+  padding: 12px 16px;
+  text-transform: uppercase;
+}
+
+.trainer-create-class-form button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.trainer-class-message {
+  border: 1px solid rgba(4, 120, 87, 0.24);
+  color: #047857;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin: 16px 0 0;
+  padding: 12px;
+  text-transform: uppercase;
+}
+
+.trainer-class-message.error {
+  border-color: rgba(185, 28, 28, 0.28);
+  color: #b91c1c;
 }
 
 .trainer-spotlight-card {
@@ -386,10 +521,28 @@
   padding: 5px 10px;
 }
 
+.trainer-empty-state {
+  background: #f7f7f7;
+  border: 1px dashed #cfcfcf;
+  color: #747878;
+  font-size: 12px;
+  font-weight: 800;
+  grid-column: 1 / -1;
+  letter-spacing: 0.12em;
+  padding: 22px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
 .trainer-schedule-panel > a,
-.trainer-section-title a {
+.trainer-section-title a,
+.trainer-panel-link {
+  background: transparent;
+  border: 0;
   color: #1a1a1a;
   display: inline-flex;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -399,6 +552,7 @@
 }
 
 .trainer-clients-section,
+.trainer-messages-section,
 .trainer-programs-section {
   margin-bottom: 34px;
   padding: 28px;
@@ -420,10 +574,77 @@
 }
 
 .trainer-client-grid article,
+.trainer-message-list a,
 .trainer-program-grid-real article {
   background: #f7f7f7;
   border: 1px solid #e8e8e8;
   padding: 20px;
+}
+
+.trainer-message-list {
+  display: grid;
+  gap: 12px;
+}
+
+.trainer-message-list a {
+  align-items: center;
+  color: #1a1a1a;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  text-decoration: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.trainer-message-list a:hover,
+.trainer-message-list a:focus-visible,
+.trainer-message-list a.unread {
+  background: #ffffff;
+  border-color: #1a1a1a;
+  outline: 0;
+}
+
+.trainer-message-list a:hover,
+.trainer-message-list a:focus-visible {
+  transform: translateY(-1px);
+}
+
+.trainer-message-avatar {
+  align-items: center;
+  background: #1a1a1a;
+  border-radius: 999px;
+  color: #ffffff;
+  display: flex;
+  font-size: 12px;
+  font-weight: 800;
+  height: 48px;
+  justify-content: center;
+  letter-spacing: 0.08em;
+  width: 48px;
+}
+
+.trainer-message-list strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.trainer-message-list p {
+  color: #444748;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trainer-message-list small {
+  color: #747878;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .trainer-client-head {
@@ -504,6 +725,16 @@
   padding: 0;
 }
 
+.trainer-live-note {
+  color: #747878;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  margin-top: 10px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
 @media (max-width: 1100px) {
   .trainer-sidebar {
     display: none;
@@ -512,6 +743,8 @@
   .trainer-main {
     margin-left: 0;
     padding: 24px 24px 72px;
+    transform: none;
+    width: 100%;
   }
 
   .trainer-mobile-brand {
@@ -519,6 +752,7 @@
   }
 
   .trainer-work-grid,
+  .trainer-create-class-form,
   .trainer-client-grid,
   .trainer-program-grid-real {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -539,6 +773,7 @@
 
   .trainer-kpi-grid,
   .trainer-work-grid,
+  .trainer-create-class-form,
   .trainer-client-grid,
   .trainer-program-grid-real,
   .trainer-spotlight-card footer {

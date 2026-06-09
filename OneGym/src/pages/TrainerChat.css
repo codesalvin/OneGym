@@ -1,0 +1,183 @@
+.trainer-chat-page {
+  grid-template-columns: 330px minmax(0, 1fr);
+}
+
+.trainer-list-panel h1 {
+  font-family: var(--serif);
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: 16px;
+}
+
+.trainer-chat-copy {
+  color: #444748;
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 30px;
+}
+
+.trainer-list {
+  display: grid;
+  gap: 12px;
+}
+
+.trainer-list button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #111;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  text-align: left;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.trainer-list button:hover,
+.trainer-list button:focus-visible,
+.trainer-list button.active {
+  background: #ffffff;
+  border-color: #111111;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.trainer-list button > span,
+.trainer-chat-header > span,
+.trainer-profile-card > span {
+  align-items: center;
+  background: #111111;
+  border-radius: 999px;
+  color: #ffffff;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  height: 42px;
+  justify-content: center;
+  letter-spacing: 0.08em;
+  width: 42px;
+}
+
+.trainer-list strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.trainer-list small,
+.trainer-empty {
+  color: var(--mid);
+  font-size: 11px;
+}
+
+.trainer-chat-panel {
+  padding-top: 28px;
+}
+
+.trainer-chat-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.trainer-chat-header h2 {
+  font-family: var(--serif);
+  font-size: 34px;
+  line-height: 1;
+}
+
+.trainer-status {
+  background: rgba(108, 255, 191, 0.24);
+  border: 1px solid rgba(45, 106, 79, 0.18);
+  color: #2d6a4f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  text-transform: uppercase;
+}
+
+.trainer-status.error {
+  background: rgba(215, 25, 32, 0.08);
+  border-color: rgba(215, 25, 32, 0.22);
+  color: #d71920;
+}
+
+.trainer-chat-page .ai-chat-scroll {
+  height: calc(100vh - 230px);
+}
+
+.trainer-chat-page .ai-message.assistant:not(:first-child) .ai-bubble,
+.trainer-chat-page .ai-message.assistant .ai-bubble {
+  padding: 24px 28px;
+  background: rgba(255, 255, 255, 0.45);
+  border-left: 2px solid #111;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.035);
+}
+
+.trainer-chat-page .ai-message.assistant .ai-bubble h1 {
+  font-size: clamp(25px, 3vw, 33px);
+}
+
+.trainer-profile-card {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+  padding: 24px;
+}
+
+.trainer-profile-card > span {
+  height: 54px;
+  margin-bottom: 18px;
+  width: 54px;
+}
+
+.trainer-profile-card h2 {
+  font-family: var(--serif);
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.trainer-profile-card p,
+.trainer-chat-note p {
+  color: #444748;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.trainer-chat-note {
+  border-left: 2px solid #111111;
+  padding-left: 18px;
+}
+
+.trainer-chat-note strong {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1180px) {
+  .trainer-chat-page {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .trainer-list-panel {
+    display: block;
+    padding: 28px 20px;
+  }
+
+  .trainer-chat-page .ai-chat-scroll {
+    height: auto;
+    min-height: calc(100vh - 250px);
+  }
+}

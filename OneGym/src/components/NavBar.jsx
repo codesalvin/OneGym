@@ -35,9 +35,11 @@ export function NavBar() {
   }, [user]);
   const dashboardHref = user?.role === 'trainer' ? '/trainer-dashboard' : '/member-dashboard';
   const dashboardLabel = user?.role === 'trainer' ? 'Trainer Portal' : 'Dashboard';
+  const isTrainer = user?.role === 'trainer';
 
   function handleLogout() {
     localStorage.removeItem('onegymUser');
+    localStorage.removeItem('onegymAuthToken');
     window.dispatchEvent(new Event('onegym-auth-change'));
     setUser(null);
     window.location.href = '/signin';
@@ -57,7 +59,7 @@ export function NavBar() {
               <div className="mega-col">
                 <h4>For Members</h4>
                 <p>Track your personal fitness journey in one place.</p>
-                <a href="member-dashboard" className="mega-item">
+                <a href="/member-dashboard" className="mega-item">
                   <span>Fitness Dashboard</span>
                   <small>Integrated workout tracking and biometric progress.</small>
                 </a>
@@ -124,12 +126,12 @@ export function NavBar() {
                 </div>
               </div>
               <a href={dashboardHref}>{dashboardLabel}</a>
-              {user.role === 'trainer' && <a href="/member-dashboard">Member View</a>}
-              <a href="/booking">Book Class</a>
-              <a href="/ai-assistant">AI Assistant</a>
+              {!isTrainer && <a href="/booking">Book Class</a>}
+              {!isTrainer && <a href="/trainer-chat">Trainer Chat</a>}
+              {!isTrainer && <a href="/ai-assistant">AI Assistant</a>}
               <a href="#">Profile</a>
               <a href="#">Settings</a>
-              <a href="#">Membership</a>
+              {!isTrainer && <a href="#">Membership</a>}
               <button type="button" onClick={handleLogout}>Logout</button>
             </div>
           </div>

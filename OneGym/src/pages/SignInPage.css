@@ -3,8 +3,8 @@
 .signin-page {
   --signin-primary: #000000;
   --signin-on-primary: #ffffff;
-  --signin-background: #f9f9f9;
-  --signin-surface: #f9f9f9;
+  --signin-background: #ffffff;
+  --signin-surface: #ffffff;
   --signin-on-surface: #1a1c1c;
   --signin-on-surface-variant: #444748;
   --signin-outline: #747878;

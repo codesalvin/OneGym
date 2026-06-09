@@ -787,7 +787,7 @@
   --color-surface-container-high: #f3f3f3;
   --color-surface-container-highest: #e8e8e8;
   --color-surface-container-low: #ffffff;
-  --color-background: #f9f9f9;
+  --color-background: #ffffff;
   /* Updated to surface token */
   --color-outline: #b0b0b0;
   --color-outline-variant: #dadada;
@@ -825,11 +825,7 @@
 }
 
 body {
-  background:
-    linear-gradient(rgba(26, 26, 26, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(26, 26, 26, 0.035) 1px, transparent 1px),
-    linear-gradient(180deg, #fbfaf7 0%, #f7f6f2 42%, #ffffff 100%);
-  background-size: 44px 44px, 44px 44px, auto;
+  background: #ffffff;
   color: var(--color-on-background);
   font-family: var(--font-body);
   font-size: 16px;
@@ -2072,5 +2068,60 @@ body {
 @media (max-width: 560px) {
   .meal-macro-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+.live-classes-grid .class-card:not(.live-class-card):not(.class-empty-card) {
+  display: none;
+}
+
+.class-empty-card {
+  align-items: center;
+  color: #747878;
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  justify-content: center;
+  letter-spacing: 0.12em;
+  min-height: 160px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.class-action-group {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.class-action-group .btn-sm {
+  min-height: 34px;
+  padding-left: 12px;
+  padding-right: 12px;
+  white-space: nowrap;
+}
+
+.chat-trainer-btn {
+  background: #ffffff;
+  min-width: 64px;
+}
+
+.chat-trainer-btn:hover {
+  background: #111111;
+  color: #ffffff;
+}
+
+@media (max-width: 560px) {
+  .live-class-card .class-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .class-action-group {
+    justify-content: flex-start;
+    width: 100%;
   }
 }

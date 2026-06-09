@@ -134,6 +134,9 @@ export function SignInPage() {
       }
 
       localStorage.setItem('onegymUser', JSON.stringify(data.user));
+      if (data.token) {
+        localStorage.setItem('onegymAuthToken', data.token);
+      }
       window.dispatchEvent(new Event('onegym-auth-change'));
       setMessage(isLogin ? 'Signed in successfully.' : 'Account created successfully.');
       navigate(getDashboardPath(data.user));
@@ -174,6 +177,9 @@ export function SignInPage() {
       }
 
       localStorage.setItem('onegymUser', JSON.stringify(data.user));
+      if (data.token) {
+        localStorage.setItem('onegymAuthToken', data.token);
+      }
       window.dispatchEvent(new Event('onegym-auth-change'));
       navigate(getDashboardPath(data.user));
     } catch (error) {

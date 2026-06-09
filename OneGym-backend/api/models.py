@@ -37,6 +37,7 @@ class PasswordResetCode(models.Model):
 
 
 class FitnessClass(models.Model):
+    trainer = models.ForeignKey(User, models.SET_NULL, db_column='trainer_id', blank=True, null=True, related_name='classes')
     title = models.CharField(max_length=255)
     instructor_name = models.CharField(max_length=150)
     room = models.CharField(max_length=100)

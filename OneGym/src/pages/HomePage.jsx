@@ -31,11 +31,6 @@ export function HomePage() {
           <div className="hero-text">
             <h1>Manage your gym like a champion</h1>
             <p>Your gym runs itself while you build something bigger. OneGym takes the daily grind and turns it into simple numbers on a screen.</p>
-            <div className="hero-ctas">
-              <a className="btn btn-primary" href="/signin">Sign In</a>
-              <a className="btn btn-outline" href="/join-trainer">Join as Trainer</a>
-              <a className="btn btn-outline" href="#features">Learn More</a>
-            </div>
           </div>
         </div>
       </section>
@@ -58,69 +53,33 @@ export function HomePage() {
         </div>
       </div>
 
-      {/* Features Heading Intro */}
-      <section className="features-intro" id="features">
-        <div className="container">
-          <p className="label">Simple</p>
-          <h2>What makes OneGym different</h2>
-          <p>Built for gym owners who want control without complexity. No fluff, just what works.</p>
-        </div>
-      </section>
-
-      {/* Feature Cards Grid Section */}
-      <section className="feature-cards">
-        <div className="container">
-          <div className="cards-grid">
-
-            <div className="card">
-              <div className="card-img img1">
-                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                  <circle cx="24" cy="18" r="8" stroke="#fff" strokeWidth="2" />
-                  <path d="M8 40c0-8.837 7.163-16 16-16s16 7.163 16 16" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </div>
-              <div className="card-body">
-                <h3>Member management</h3>
-                <p>Keep track of every member, their progress, and their payments in one dashboard.</p>
-              </div>
+      {/* Difference Editorial Section */}
+      <section className="difference-editorial" id="features">
+        <div className="difference-layout">
+          <div className="difference-lead">
+            <h2>What makes OneGym different</h2>
+            <p>OneGym keeps bookings, trainers, workouts, meals, and member progress in one live operating view.</p>
+            <div className="difference-actions">
+              <a className="btn btn-primary" href="/signin">Start Managing</a>
+              <a className="difference-link" href="/join-trainer">Join as Trainer</a>
             </div>
-
-            <div className="card">
-              <div className="card-img img2">
-                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                  <rect x="8" y="10" width="32" height="30" rx="3" stroke="#fff" strokeWidth="2" />
-                  <path d="M8 18h32M16 6v8M32 6v8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </div>
-              <div className="card-body">
-                <h3>Class scheduling</h3>
-                <p>Schedule classes, manage instructors, and let members book their spots automatically.</p>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-img img3">
-                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                  <polyline points="8,34 18,22 26,28 40,12" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="40" cy="12" r="3" fill="#fff" />
-                </svg>
-              </div>
-              <div className="card-body">
-                <h3>Real-time reporting</h3>
-                <p>See your revenue, attendance, and member trends whenever you need them.</p>
-              </div>
-            </div>
-
+            <img
+              alt="Gym members training with coach in a modern studio"
+              src="https://images.unsplash.com/photo-1571019613914-85f342c6a11e?auto=format&fit=crop&w=1300&q=85"
+            />
           </div>
-          <div className="cards-actions">
-            <a className="btn btn-outline btn-sm" href="/signin">Explore</a>
-            <a className="arrow-link" href="#">
-              Arrow
-              <svg viewBox="0 0 16 16" fill="none">
-                <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </a>
-          </div>
+
+          <aside className="difference-story">
+            <img
+              alt="Personal trainer coaching a strength session"
+              src="https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=900&q=85"
+            />
+            <div>
+              <h3>Live class flow, not admin noise</h3>
+              <p>Trainers create sessions, members reserve instantly, and every dashboard updates from the same source of truth.</p>
+              <a href="/booking">Explore member booking</a>
+            </div>
+          </aside>
         </div>
       </section>
 

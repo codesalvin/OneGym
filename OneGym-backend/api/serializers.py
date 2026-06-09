@@ -11,6 +11,7 @@ class UserSerializer(serializers.Serializer):
 
 class FitnessClassSerializer(serializers.Serializer):
     id = serializers.IntegerField()
+    trainer_id = serializers.IntegerField(allow_null=True)
     title = serializers.CharField()
     instructor_name = serializers.CharField()
     room = serializers.CharField()
@@ -20,9 +21,32 @@ class FitnessClassSerializer(serializers.Serializer):
     available_slots = serializers.IntegerField()
 
 
+class FitnessClassCreateSerializer(serializers.Serializer):
+    trainer_id = serializers.IntegerField()
+    title = serializers.CharField(max_length=255)
+    room = serializers.CharField(max_length=100)
+    schedule_time = serializers.DateTimeField()
+    slots = serializers.IntegerField(min_value=1, max_value=500)
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Class title is required.')
+
+        return value
+
+    def validate_room(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Room is required.')
+
+        return value
+
+
 class ClassBookingSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     class_id = serializers.IntegerField()
+    trainer_id = serializers.IntegerField(allow_null=True)
     title = serializers.CharField()
     instructor_name = serializers.CharField()
     room = serializers.CharField()
@@ -143,6 +167,27 @@ class TrainerApplicationSerializer(serializers.Serializer):
 class TrainerApplicationReviewSerializer(serializers.Serializer):
     reviewer_id = serializers.IntegerField(required=False, allow_null=True)
     status = serializers.ChoiceField(choices=['approved', 'rejected'])
+
+
+class TrainerChatMessageSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    sender_id = serializers.IntegerField()
+    sender_name = serializers.CharField()
+    recipient_id = serializers.IntegerField()
+    recipient_name = serializers.CharField()
+    body = serializers.CharField()
+    read_at = serializers.DateTimeField(allow_null=True)
+    created_at = serializers.DateTimeField()
+
+
+class TrainerChatConversationSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    username = serializers.CharField()
+    email = serializers.EmailField()
+    role = serializers.CharField()
+    last_message = serializers.CharField()
+    last_message_at = serializers.DateTimeField()
+    unread_count = serializers.IntegerField()
 
 
 class SignUpSerializer(serializers.Serializer):
