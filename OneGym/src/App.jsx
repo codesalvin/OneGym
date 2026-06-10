@@ -9,6 +9,8 @@ import { MealHistoryPage } from './pages/MealHistory';
 import { JoinTrainerPage } from './pages/JoinTrainerPage';
 import { TrainerDashboardPage } from './pages/TrainerDashboard';
 import { TrainerChatPage } from './pages/TrainerChat';
+import { ProfilePage } from './pages/ProfilePage';
+import { SupportPage } from './pages/SupportPage';
 
 function getStoredUser() {
   try {
@@ -62,11 +64,13 @@ function App() {
     <Routes>
       <Route index element={<HomePage />} />
       <Route path="/signin" element={<SignInPage />} />
+      <Route path="/support" element={<SupportPage />} />
       <Route path="/member-dashboard" element={<MemberOnly><MemberDashboardPage /></MemberOnly>} />
       <Route path="/booking" element={<MemberOnly><BookingPage /></MemberOnly>} />
       <Route path="/log-workout" element={<MemberOnly><LogWorkoutPage /></MemberOnly>} />
       <Route path="/ai-assistant" element={<MemberOnly><AiAssistantPage /></MemberOnly>} />
       <Route path="/trainer-chat" element={<AuthOnly><TrainerChatPage /></AuthOnly>} />
+      <Route path="/profile" element={<AuthOnly><ProfilePage /></AuthOnly>} />
       <Route path="/meal-history" element={<MemberOnly><MealHistoryPage /></MemberOnly>} />
       <Route path="/join-trainer" element={<JoinTrainerPage />} />
       <Route path="/trainer-dashboard" element={<TrainerOnly><TrainerDashboardPage /></TrainerOnly>} />

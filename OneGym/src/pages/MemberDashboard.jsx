@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavBar } from '../components/NavBar';
 import { Footer } from '../components/Footer';
 import './MemberDashboard.css';
+import loginImage from '../../images/login.jpg';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 const CALORIE_GOAL = 2500;
 const PROTEIN_GOAL = 180;
 const CARBS_GOAL = 300;
@@ -707,7 +708,7 @@ export function MemberDashboardPage() {
         <section className="stats-grid">
           <div className="stat-card">
             <h3 className="stat-card-label">Current Streak</h3>
-            <span className="stat-card-icon material-symbols-outlined" aria-hidden="true">local_fire_department</span>
+            <span className="stat-card-icon stat-card-fire material-symbols-outlined" aria-hidden="true">local_fire_department</span>
             <div className="stat-value-group">
               <span className="stat-value">{workoutStats.currentStreak}</span>
               <span className="stat-unit">Days</span>
@@ -756,11 +757,7 @@ export function MemberDashboardPage() {
           {/* Left Column: Classes */}
           <section className="classes-column">
             <div className="focus-banner">
-              <img 
-                alt="Focus" 
-                className="focus-banner-img" 
-                src="https://lh3.googleusercontent.com/aida/ADBb0uiOcNmOHrQ6iY6cOYhMhcfPwzXbvhx2e46nMHFoK4VsppI4ee_Dzah42MSYlMbohwb4ryKKK4DPLKT-N9I2lytrM3UNTSWJ5LGH7rDDtA3tNlvJatbQ_rUBW_t7aSdAwdAXH1gK-VDHgrYoU5I6BsRDkbZLiEUmcoPEtQLZbpEqtyk2RHk8bZHzaUs86S6tGRV4V1D7xiycaumKA6ZvwjD4PR89pJJLE0e4vRep_sVpmct_gpDpoLrJ1Q" 
-              />
+              <img alt="Focus" className="focus-banner-img" src={loginImage} />
               <div className="focus-banner-overlay">
                 <h3 className="focus-banner-title">Find Your Flow</h3>
               </div>

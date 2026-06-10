@@ -4,7 +4,7 @@ import { NavBar } from '../components/NavBar';
 import './AiAssistant.css';
 import './TrainerChat.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 async function readApiResponse(response) {
   const text = await response.text();
@@ -87,15 +87,8 @@ export function TrainerChatPage() {
   }
 
   async function loadMessages(targetId = selectedTargetId) {
-    const token = localStorage.getItem('onegymAuthToken');
     if (!user?.id || !targetId) {
       setMessages([]);
-      return;
-    }
-
-    if (!token) {
-      setIsError(true);
-      setStatusMessage('Please sign in again before opening trainer chat.');
       return;
     }
 
@@ -103,9 +96,7 @@ export function TrainerChatPage() {
       const memberId = isTrainerUser ? targetId : user.id;
       const trainerId = isTrainerUser ? user.id : targetId;
       const response = await fetch(`${API_BASE_URL}/users/${memberId}/trainer-messages/?trainer_id=${trainerId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
       const data = await readApiResponse(response);
 
@@ -149,18 +140,12 @@ export function TrainerChatPage() {
     event.preventDefault();
 
     const text = input.trim();
-    const token = localStorage.getItem('onegymAuthToken');
     if (!text || isSending) {
       return;
     }
     if (!selectedTargetId) {
       setIsError(true);
       setStatusMessage(`Choose a ${targetLabel} before sending a message.`);
-      return;
-    }
-    if (!token) {
-      setIsError(true);
-      setStatusMessage('Please sign in again before sending a message.');
       return;
     }
 
@@ -172,8 +157,8 @@ export function TrainerChatPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/trainer-chat/messages/`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

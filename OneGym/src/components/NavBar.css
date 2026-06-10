@@ -167,6 +167,14 @@
   background: #333333;
 }
 
+.profile-trigger img,
+.profile-avatar img {
+  border-radius: 50%;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
 .profile-dropdown {
   position: absolute;
   top: calc(100% + 10px);

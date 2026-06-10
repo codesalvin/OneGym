@@ -14,6 +14,19 @@ class User(models.Model):
     email = models.EmailField(max_length=254, unique=True)
     password = models.CharField(max_length=255)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    profile_photo_url = models.CharField(max_length=255, blank=True, null=True)
+    fitness_goal = models.CharField(max_length=255, blank=True, null=True)
+    training_style = models.CharField(max_length=80, blank=True, null=True)
+    weekly_target = models.PositiveIntegerField(blank=True, null=True)
+    weight_goal = models.CharField(max_length=80, blank=True, null=True)
+    starting_weight = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True)
+    current_weight = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True)
+    goal_weight = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True)
+    weekly_goal = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    calorie_goal = models.PositiveIntegerField(blank=True, null=True)
+    protein_goal = models.PositiveIntegerField(blank=True, null=True)
+    carbs_goal = models.PositiveIntegerField(blank=True, null=True)
+    fats_goal = models.PositiveIntegerField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -101,6 +114,35 @@ class WorkoutExercise(models.Model):
 
     def __str__(self):
         return self.exercise_name
+
+
+class Exercise(models.Model):
+    name = models.CharField(max_length=150, unique=True)
+    category = models.CharField(max_length=80, blank=True, null=True)
+    default_unit = models.CharField(max_length=30, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'exercises'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class PersonalRecord(models.Model):
+    user = models.ForeignKey(User, models.CASCADE, db_column='user_id')
+    exercise = models.ForeignKey(Exercise, models.CASCADE, db_column='exercise_id')
+    record_type = models.CharField(max_length=50)
+    value = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=30)
+    recorded_at = models.DateTimeField()
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'personal_records'
+        ordering = ['-recorded_at']
 
 
 class Meal(models.Model):

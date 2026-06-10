@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import './TrainerDashboard.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 const CLIENT_PROGRESS_TARGET = 12;
 const REFRESH_INTERVAL_MS = 15000;
 const emptyClassForm = {
@@ -126,14 +126,9 @@ export function TrainerDashboardPage() {
 
   async function loadDashboardData() {
     try {
-      const token = localStorage.getItem('onegymAuthToken');
-      const conversationRequest = token
-        ? fetch(`${API_BASE_URL}/trainer-chat/conversations/`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          })
-        : Promise.resolve(null);
+      const conversationRequest = fetch(`${API_BASE_URL}/trainer-chat/conversations/`, {
+        credentials: 'include',
+      });
       const [usersResponse, classesResponse, applicationsResponse, conversationsResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/users/`),
         fetch(`${API_BASE_URL}/classes/`),
@@ -145,7 +140,7 @@ export function TrainerDashboardPage() {
         readApiResponse(usersResponse),
         readApiResponse(classesResponse),
         readApiResponse(applicationsResponse),
-        conversationsResponse ? readApiResponse(conversationsResponse) : Promise.resolve([]),
+        readApiResponse(conversationsResponse),
       ]);
 
       if (!usersResponse.ok) {
@@ -157,7 +152,7 @@ export function TrainerDashboardPage() {
       if (!applicationsResponse.ok) {
         throw new Error(applicationsData?.detail || 'Unable to load trainer applications.');
       }
-      if (conversationsResponse && !conversationsResponse.ok) {
+      if (!conversationsResponse.ok) {
         throw new Error(conversationsData?.detail || 'Unable to load trainer messages.');
       }
 
@@ -204,13 +199,6 @@ export function TrainerDashboardPage() {
   async function createClass(event) {
     event.preventDefault();
 
-    const token = localStorage.getItem('onegymAuthToken');
-    if (!token) {
-      setIsClassError(true);
-      setClassMessage('Please sign in again before creating a class.');
-      return;
-    }
-
     setIsCreatingClass(true);
     setIsClassError(false);
     setClassMessage('');
@@ -218,8 +206,8 @@ export function TrainerDashboardPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/classes/`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

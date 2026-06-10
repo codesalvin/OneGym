@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import './NavBar.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
 export function NavBar() {
   const [user, setUser] = useState(null);
 
@@ -36,10 +38,19 @@ export function NavBar() {
   const dashboardHref = user?.role === 'trainer' ? '/trainer-dashboard' : '/member-dashboard';
   const dashboardLabel = user?.role === 'trainer' ? 'Trainer Portal' : 'Dashboard';
   const isTrainer = user?.role === 'trainer';
+  const profilePhotoUrl = user?.profile_photo_url || '';
 
-  function handleLogout() {
+  async function handleLogout() {
+    try {
+      await fetch(`${API_BASE_URL}/auth/signout/`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Local logout still clears UI state if the server is unreachable.
+    }
+
     localStorage.removeItem('onegymUser');
-    localStorage.removeItem('onegymAuthToken');
     window.dispatchEvent(new Event('onegym-auth-change'));
     setUser(null);
     window.location.href = '/signin';
@@ -108,18 +119,20 @@ export function NavBar() {
             </div>
           </li>
           
-          <li><a href="#">Support</a></li>
+          <li><a href="/support">Support</a></li>
           <li><a href="#">Resources</a></li>
         </ul>
         <a className="nav-pill" href="#">All articles</a>
         {user ? (
           <div className="profile-menu">
             <button className="profile-trigger" type="button" aria-label="Open profile menu">
-              <span>{userInitials}</span>
+              {profilePhotoUrl ? <img alt="" src={profilePhotoUrl} /> : <span>{userInitials}</span>}
             </button>
             <div className="profile-dropdown">
               <div className="profile-summary">
-                <div className="profile-avatar">{userInitials}</div>
+                <div className="profile-avatar">
+                  {profilePhotoUrl ? <img alt="" src={profilePhotoUrl} /> : userInitials}
+                </div>
                 <div>
                   <strong>{user.username || 'Member'}</strong>
                   <small>{user.email}</small>
@@ -129,7 +142,7 @@ export function NavBar() {
               {!isTrainer && <a href="/booking">Book Class</a>}
               {!isTrainer && <a href="/trainer-chat">Trainer Chat</a>}
               {!isTrainer && <a href="/ai-assistant">AI Assistant</a>}
-              <a href="#">Profile</a>
+              <a href="/profile">Profile</a>
               <a href="#">Settings</a>
               {!isTrainer && <a href="#">Membership</a>}
               <button type="button" onClick={handleLogout}>Logout</button>

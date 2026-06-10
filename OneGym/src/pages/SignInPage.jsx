@@ -1,15 +1,43 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import './SignInPage.css';
 
 const heroImage = '../images/login.jpg';
   
 const logoImage = '../images/logo.png';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function getDashboardPath(user) {
   return user?.role === 'trainer' ? '/trainer-dashboard' : '/member-dashboard';
+}
+
+async function parseResponseBody(response) {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      return await response.json();
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+}
+
+function getErrorMessage(error, fallback = 'Something went wrong.') {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function saveAuthenticatedUser(data) {
+  if (!data?.user) {
+    throw new Error('User data was not returned by the server.');
+  }
+
+  localStorage.removeItem('onegymAuthToken');
+  localStorage.setItem('onegymUser', JSON.stringify(data.user));
+  window.dispatchEvent(new Event('onegym-auth-change'));
 }
 
 function loadScript(src, id) {
@@ -19,6 +47,8 @@ function loadScript(src, id) {
       resolve();
       return;
     }
+
+// Downloads script in bg if not found.
 
     const script = document.createElement('script');
     script.id = id;
@@ -57,63 +87,15 @@ export function SignInPage() {
   const isLogin = activeForm === 'login';
   const isReset = activeForm === 'reset';
 
-  useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) {
-      return;
-    }
-
-    let isMounted = true;
-
-    loadScript('https://accounts.google.com/gsi/client', 'google-identity-script')
-      .then(() => {
-        if (!isMounted || !window.google?.accounts?.id) {
-          return;
-        }
-
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (response) => handleSocialCredential('google', response.credential),
-        });
-        googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-          client_id: GOOGLE_CLIENT_ID,
-          scope: 'openid email profile',
-          callback: (response) => handleSocialCredential('google', response.access_token, 'access_token'),
-        });
-      })
-      .catch(() => {
-        setIsError(true);
-        setMessage('Unable to load Google sign in.');
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  function updateLoginField(event) {
+  function updateFormField(setForm, event) {
     const { name, value } = event.target;
-    setLoginForm((current) => ({
+    setForm((current) => ({
       ...current,
       [name]: value,
     }));
   }
 
-  function updateSignupField(event) {
-    const { name, value } = event.target;
-    setSignupForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
-  }
-
-  function updateResetField(event) {
-    const { name, value } = event.target;
-    setResetForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
-  }
-
+  // endpoint = login / register
   async function submitAuthForm(endpoint, payload) {
     setIsSubmitting(true);
     setMessage('');
@@ -122,33 +104,30 @@ export function SignInPage() {
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
+      const data = await parseResponseBody(response);
 
       if (!response.ok) {
         throw new Error(data.detail || 'Something went wrong.');
       }
 
-      localStorage.setItem('onegymUser', JSON.stringify(data.user));
-      if (data.token) {
-        localStorage.setItem('onegymAuthToken', data.token);
-      }
-      window.dispatchEvent(new Event('onegym-auth-change'));
+      saveAuthenticatedUser(data);
       setMessage(isLogin ? 'Signed in successfully.' : 'Account created successfully.');
       navigate(getDashboardPath(data.user));
     } catch (error) {
       setIsError(true);
-      setMessage(error.message);
+      setMessage(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  async function handleSocialCredential(provider, token, tokenType = 'id_token') {
+  const handleSocialCredential = useCallback(async (provider, token, tokenType = 'id_token') => {
     if (!token) {
       setIsError(true);
       setMessage(`Unable to get ${provider} login token.`);
@@ -162,6 +141,7 @@ export function SignInPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/social/`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -170,25 +150,69 @@ export function SignInPage() {
           [tokenType]: token,
         }),
       });
-      const data = await response.json();
+      const data = await parseResponseBody(response);
 
       if (!response.ok) {
         throw new Error(data.detail || `Unable to sign in with ${provider}.`);
       }
 
-      localStorage.setItem('onegymUser', JSON.stringify(data.user));
-      if (data.token) {
-        localStorage.setItem('onegymAuthToken', data.token);
-      }
-      window.dispatchEvent(new Event('onegym-auth-change'));
+      saveAuthenticatedUser(data);
       navigate(getDashboardPath(data.user));
     } catch (error) {
       setIsError(true);
-      setMessage(error.message);
+      setMessage(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
+  }, [navigate]);
+
+  function initializeGoogleTokenClient() {
+    if (!window.google?.accounts?.oauth2) {
+      throw new Error('Google sign in is not ready yet.');
+    }
+
+    if (!googleTokenClientRef.current) {
+      googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'openid email profile',
+        callback: (response) => handleSocialCredential('google', response.access_token, 'access_token'),
+      });
+    }
+
+    return googleTokenClientRef.current;
   }
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) {
+      return;
+    }
+//prevent state updates
+    let isMounted = true;
+
+    loadScript('https://accounts.google.com/gsi/client', 'google-identity-script')
+      .then(() => {
+        if (!isMounted || !window.google?.accounts?.id || !window.google?.accounts?.oauth2) {
+          return;
+        }
+
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (response) => handleSocialCredential('google', response.credential),
+        });
+        initializeGoogleTokenClient();
+      })
+      .catch(() => {
+        if (isMounted) {
+          setIsError(true);
+          setMessage('Unable to load Google sign in.');
+        }
+      });
+
+    return () => {
+      isMounted = false;
+      window.google?.accounts?.id?.cancel?.();
+    };
+  }, [handleSocialCredential]);
 
   async function handleGoogleAuth() {
     if (!GOOGLE_CLIENT_ID) {
@@ -200,24 +224,17 @@ export function SignInPage() {
     try {
       await loadScript('https://accounts.google.com/gsi/client', 'google-identity-script');
 
-      if (!window.google?.accounts?.id) {
+      if (!window.google?.accounts?.id || !window.google?.accounts?.oauth2) {
         throw new Error('Google sign in is not ready yet.');
       }
 
-      if (!googleTokenClientRef.current) {
-        googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-          client_id: GOOGLE_CLIENT_ID,
-          scope: 'openid email profile',
-          callback: (response) => handleSocialCredential('google', response.access_token, 'access_token'),
-        });
-      }
-
-      googleTokenClientRef.current.requestAccessToken({
+      const tokenClient = initializeGoogleTokenClient();
+      tokenClient.requestAccessToken({
         prompt: 'select_account',
       });
     } catch (error) {
       setIsError(true);
-      setMessage(error.message || 'Unable to load Google sign in.');
+      setMessage(getErrorMessage(error, 'Unable to load Google sign in.'));
     }
   }
 
@@ -252,7 +269,7 @@ export function SignInPage() {
             email: resetForm.email,
           }),
         });
-        const data = await response.json();
+        const data = await parseResponseBody(response);
 
         if (!response.ok) {
           throw new Error(data.detail || 'Unable to send confirmation code.');
@@ -262,11 +279,17 @@ export function SignInPage() {
         setMessage(data.detail || 'Confirmation code sent to your email.');
       } catch (error) {
         setIsError(true);
-        setMessage(error.message);
+        setMessage(getErrorMessage(error));
       } finally {
         setIsSubmitting(false);
       }
 
+      return;
+    }
+
+    if (!resetForm.code || !resetForm.password || !resetForm.confirmPassword) {
+      setIsError(true);
+      setMessage('Please fill in all reset fields.');
       return;
     }
 
@@ -292,7 +315,7 @@ export function SignInPage() {
           password: resetForm.password,
         }),
       });
-      const data = await response.json();
+      const data = await parseResponseBody(response);
 
       if (!response.ok) {
         throw new Error(data.detail || 'Unable to reset password.');
@@ -315,7 +338,7 @@ export function SignInPage() {
       setResetCodeSent(false);
     } catch (error) {
       setIsError(true);
-      setMessage(error.message);
+      setMessage(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -392,7 +415,7 @@ export function SignInPage() {
                   className="signin-input-underlined"
                   id="reset-email"
                   name="email"
-                  onChange={updateResetField}
+                  onChange={(event) => updateFormField(setResetForm, event)}
                   placeholder="name@example.com"
                   required
                   type="email"
@@ -411,7 +434,7 @@ export function SignInPage() {
                       inputMode="numeric"
                       maxLength="6"
                       name="code"
-                      onChange={updateResetField}
+                      onChange={(event) => updateFormField(setResetForm, event)}
                       placeholder="6-digit code"
                       required
                       type="text"
@@ -426,7 +449,7 @@ export function SignInPage() {
                       className="signin-input-underlined"
                       id="reset-password"
                       name="password"
-                      onChange={updateResetField}
+                      onChange={(event) => updateFormField(setResetForm, event)}
                       placeholder="Create a new password"
                       required
                       type="password"
@@ -441,7 +464,7 @@ export function SignInPage() {
                       className="signin-input-underlined"
                       id="reset-confirm-password"
                       name="confirmPassword"
-                      onChange={updateResetField}
+                      onChange={(event) => updateFormField(setResetForm, event)}
                       placeholder="Repeat new password"
                       required
                       type="password"
@@ -471,7 +494,7 @@ export function SignInPage() {
                   className="signin-input-underlined"
                   id="signin-email"
                   name="email"
-                  onChange={updateLoginField}
+                  onChange={(event) => updateFormField(setLoginForm, event)}
                   placeholder="name@example.com"
                   required
                   type="email"
@@ -486,7 +509,7 @@ export function SignInPage() {
                   className="signin-input-underlined"
                   id="signin-password"
                   name="password"
-                  onChange={updateLoginField}
+                  onChange={(event) => updateFormField(setLoginForm, event)}
                   placeholder="Password"
                   required
                   type="password"
@@ -512,7 +535,7 @@ export function SignInPage() {
                   className="signin-input-underlined"
                   id="signup-name"
                   name="username"
-                  onChange={updateSignupField}
+                  onChange={(event) => updateFormField(setSignupForm, event)}
                   placeholder="Julian Sterling"
                   required
                   type="text"
@@ -527,7 +550,7 @@ export function SignInPage() {
                   className="signin-input-underlined"
                   id="signup-email"
                   name="email"
-                  onChange={updateSignupField}
+                  onChange={(event) => updateFormField(setSignupForm, event)}
                   placeholder="name@example.com"
                   required
                   type="email"
@@ -542,7 +565,7 @@ export function SignInPage() {
                   className="signin-input-underlined"
                   id="signup-password"
                   name="password"
-                  onChange={updateSignupField}
+                  onChange={(event) => updateFormField(setSignupForm, event)}
                   placeholder="Create a secure password"
                   required
                   type="password"

@@ -23,12 +23,15 @@ import secrets
 from .models import PasswordResetCode
 from .serializers import (
     ClassBookingSerializer,
+    ExerciseSerializer,
     FitnessClassCreateSerializer,
     FitnessClassSerializer,
     MealCreateSerializer,
     MealSummarySerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    PersonalRecordCreateSerializer,
+    PersonalRecordSerializer,
     SignInSerializer,
     SignUpSerializer,
     SocialAuthSerializer,
@@ -37,6 +40,7 @@ from .serializers import (
     TrainerApplicationSerializer,
     TrainerChatConversationSerializer,
     TrainerChatMessageSerializer,
+    UserProfileUpdateSerializer,
     UserSerializer,
     WorkoutCreateSerializer,
     WorkoutSummarySerializer,
@@ -54,6 +58,7 @@ ALLOWED_CERTIFICATION_CONTENT_TYPES = {
 }
 MAX_CERTIFICATION_FILE_SIZE = 10 * 1024 * 1024
 AUTH_TOKEN_LIFETIME = timedelta(days=30)
+AUTH_COOKIE_NAME = 'onegym_auth'
 
 
 def extract_json_object(text):
@@ -863,6 +868,21 @@ def save_meal_photo(uploaded_file):
     return default_storage.url(saved_path)
 
 
+def save_profile_photo(uploaded_file):
+    if not uploaded_file:
+        return None
+
+    if uploaded_file.size > 5 * 1024 * 1024:
+        raise ValueError('Profile photo must be 5MB or smaller.')
+    if uploaded_file.content_type and not uploaded_file.content_type.startswith('image/'):
+        raise ValueError('Profile photo must be an image file.')
+
+    extension = Path(uploaded_file.name).suffix.lower() or '.jpg'
+    filename = f'profile_photos/{secrets.token_urlsafe(16)}{extension}'
+    saved_path = default_storage.save(filename, ContentFile(uploaded_file.read()))
+    return default_storage.url(saved_path)
+
+
 def serialize_trainer_application_row(row):
     (
         application_id,
@@ -1054,30 +1074,355 @@ def health_check(_request):
     })
 
 
+def serialize_personal_record_row(row):
+    (
+        record_id,
+        user_id,
+        exercise_id,
+        exercise_name,
+        category,
+        record_type,
+        value,
+        unit,
+        recorded_at,
+        notes,
+        created_at,
+    ) = row
+
+    return {
+        'id': record_id,
+        'user_id': user_id,
+        'exercise_id': exercise_id,
+        'exercise_name': exercise_name,
+        'category': category,
+        'record_type': record_type,
+        'value': value,
+        'unit': unit,
+        'recorded_at': recorded_at,
+        'notes': notes,
+        'created_at': created_at,
+    }
+
+
+@api_view(['GET'])
+def exercise_list(_request):
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id, name, category, default_unit, created_at FROM exercises ORDER BY name')
+        exercises = [
+            {
+                'id': exercise_id,
+                'name': name,
+                'category': category,
+                'default_unit': default_unit,
+                'created_at': created_at,
+            }
+            for exercise_id, name, category, default_unit, created_at in cursor.fetchall()
+        ]
+
+    serializer = ExerciseSerializer(exercises, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def user_personal_records(_request, user_id):
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
+        if not cursor.fetchone():
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        cursor.execute(
+            '''
+            SELECT
+                pr.id,
+                pr.user_id,
+                e.id AS exercise_id,
+                e.name AS exercise_name,
+                e.category,
+                pr.record_type,
+                pr.value,
+                pr.unit,
+                pr.recorded_at,
+                pr.notes,
+                pr.created_at
+            FROM personal_records pr
+            INNER JOIN exercises e ON e.id = pr.exercise_id
+            WHERE pr.user_id = %s
+            ORDER BY pr.recorded_at DESC, pr.id DESC
+            ''',
+            [user_id],
+        )
+        records = [serialize_personal_record_row(row) for row in cursor.fetchall()]
+
+    serializer = PersonalRecordSerializer(records, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+def create_personal_record(request):
+    serializer = PersonalRecordCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+    if actor['role'] not in ['admin', 'owner'] and actor['id'] != data['user_id']:
+        return Response({'detail': 'You cannot save records for this user.'}, status=status.HTTP_403_FORBIDDEN)
+
+    exercise_name = data['exercise_name'].strip()
+    category = (data.get('category') or '').strip() or None
+    unit = data['unit'].strip() or 'kg'
+    recorded_at = data.get('recorded_at') or timezone.now()
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [data['user_id']])
+        if not cursor.fetchone():
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        cursor.execute('SELECT id FROM exercises WHERE name = %s LIMIT 1', [exercise_name])
+        exercise_row = cursor.fetchone()
+        if exercise_row:
+            exercise_id = exercise_row[0]
+            if category:
+                cursor.execute('UPDATE exercises SET category = COALESCE(category, %s), default_unit = COALESCE(default_unit, %s) WHERE id = %s', [category, unit, exercise_id])
+        else:
+            cursor.execute(
+                'INSERT INTO exercises (name, category, default_unit, created_at) VALUES (%s, %s, %s, NOW(6))',
+                [exercise_name, category, unit],
+            )
+            exercise_id = cursor.lastrowid
+
+        cursor.execute(
+            '''
+            INSERT INTO personal_records
+                (user_id, exercise_id, record_type, value, unit, recorded_at, notes, created_at)
+            VALUES
+                (%s, %s, %s, %s, %s, %s, %s, NOW(6))
+            ''',
+            [
+                data['user_id'],
+                exercise_id,
+                data['record_type'],
+                data['value'],
+                unit,
+                recorded_at,
+                data.get('notes') or None,
+            ],
+        )
+        record_id = cursor.lastrowid
+
+        cursor.execute(
+            '''
+            SELECT
+                pr.id,
+                pr.user_id,
+                e.id AS exercise_id,
+                e.name AS exercise_name,
+                e.category,
+                pr.record_type,
+                pr.value,
+                pr.unit,
+                pr.recorded_at,
+                pr.notes,
+                pr.created_at
+            FROM personal_records pr
+            INNER JOIN exercises e ON e.id = pr.exercise_id
+            WHERE pr.id = %s
+            LIMIT 1
+            ''',
+            [record_id],
+        )
+        record = serialize_personal_record_row(cursor.fetchone())
+
+    return Response(PersonalRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['DELETE', 'POST'])
+def delete_personal_record(request, record_id=None):
+    record_id = record_id or request.data.get('record_id')
+    user_id = request.data.get('user_id') or request.query_params.get('user_id')
+
+    if not record_id or not user_id:
+        return Response({'detail': 'Record id and user id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        record_id = int(record_id)
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return Response({'detail': 'Record id and user id must be numbers.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if actor['role'] not in ['admin', 'owner'] and actor['id'] != user_id:
+        return Response({'detail': 'You cannot delete this record.'}, status=status.HTTP_403_FORBIDDEN)
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id FROM personal_records WHERE id = %s AND user_id = %s LIMIT 1', [record_id, user_id])
+        if not cursor.fetchone():
+            return Response({'detail': 'Personal record not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        cursor.execute('DELETE FROM personal_records WHERE id = %s AND user_id = %s', [record_id, user_id])
+
+    return Response({'detail': 'Personal record deleted.'})
+
+
 @api_view(['GET'])
 def user_list(_request):
     with connection.cursor() as cursor:
-        cursor.execute('SELECT id, username, email, role, created_at FROM users ORDER BY id')
+        cursor.execute(
+            '''
+            SELECT
+                id,
+                username,
+                email,
+                role,
+                profile_photo_url,
+                fitness_goal,
+                training_style,
+                weekly_target,
+                weight_goal,
+                starting_weight,
+                current_weight,
+                goal_weight,
+                weekly_goal,
+                calorie_goal,
+                protein_goal,
+                carbs_goal,
+                fats_goal,
+                created_at
+            FROM users
+            ORDER BY id
+            '''
+        )
         users = [
             {
                 'id': user_id,
                 'username': username,
                 'email': email,
                 'role': role,
+                'profile_photo_url': profile_photo_url,
+                'fitness_goal': fitness_goal,
+                'training_style': training_style,
+                'weekly_target': weekly_target,
+                'weight_goal': weight_goal,
+                'starting_weight': starting_weight,
+                'current_weight': current_weight,
+                'goal_weight': goal_weight,
+                'weekly_goal': weekly_goal,
+                'calorie_goal': calorie_goal,
+                'protein_goal': protein_goal,
+                'carbs_goal': carbs_goal,
+                'fats_goal': fats_goal,
                 'created_at': created_at,
             }
-            for user_id, username, email, role, created_at in cursor.fetchall()
+            for (
+                user_id,
+                username,
+                email,
+                role,
+                profile_photo_url,
+                fitness_goal,
+                training_style,
+                weekly_target,
+                weight_goal,
+                starting_weight,
+                current_weight,
+                goal_weight,
+                weekly_goal,
+                calorie_goal,
+                protein_goal,
+                carbs_goal,
+                fats_goal,
+                created_at,
+            ) in cursor.fetchall()
         ]
 
     serializer = UserSerializer(users, many=True)
     return Response(serializer.data)
 
 
-@api_view(['GET'])
-def user_detail(_request, user_id):
+@api_view(['GET', 'PATCH', 'POST'])
+def user_detail(request, user_id):
+    if request.method in ['PATCH', 'POST']:
+        actor = get_authenticated_user(request)
+        if not actor:
+            return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+        if actor['role'] not in ['admin', 'owner'] and actor['id'] != user_id:
+            return Response({'detail': 'You cannot edit this profile.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = UserProfileUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        profile_photo_url = None
+        uploaded_file = request.FILES.get('profile_photo')
+        if uploaded_file:
+            try:
+                profile_photo_url = save_profile_photo(uploaded_file)
+            except ValueError as error:
+                return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        updates = []
+        params = []
+        for field in [
+            'username',
+            'fitness_goal',
+            'training_style',
+            'weekly_target',
+            'weight_goal',
+            'starting_weight',
+            'current_weight',
+            'goal_weight',
+            'weekly_goal',
+            'calorie_goal',
+            'protein_goal',
+            'carbs_goal',
+            'fats_goal',
+        ]:
+            if field in data:
+                updates.append(f'{field} = %s')
+                params.append(data[field] if data[field] != '' else None)
+        if profile_photo_url:
+            updates.append('profile_photo_url = %s')
+            params.append(profile_photo_url)
+
+        if updates:
+            params.append(user_id)
+            with connection.cursor() as cursor:
+                if 'username' in data:
+                    cursor.execute('SELECT id FROM users WHERE username = %s AND id <> %s LIMIT 1', [data['username'], user_id])
+                    if cursor.fetchone():
+                        return Response({'detail': 'Username is already taken.'}, status=status.HTTP_400_BAD_REQUEST)
+                cursor.execute(f'UPDATE users SET {", ".join(updates)} WHERE id = %s', params)
+
     with connection.cursor() as cursor:
         cursor.execute(
-            'SELECT id, username, email, role, created_at FROM users WHERE id = %s LIMIT 1',
+            '''
+            SELECT
+                id,
+                username,
+                email,
+                role,
+                profile_photo_url,
+                fitness_goal,
+                training_style,
+                weekly_target,
+                weight_goal,
+                starting_weight,
+                current_weight,
+                goal_weight,
+                weekly_goal,
+                calorie_goal,
+                protein_goal,
+                carbs_goal,
+                fats_goal,
+                created_at
+            FROM users
+            WHERE id = %s
+            LIMIT 1
+            ''',
             [user_id],
         )
         row = cursor.fetchone()
@@ -1085,12 +1430,44 @@ def user_detail(_request, user_id):
     if not row:
         return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    user_id, username, email, role, created_at = row
+    (
+        user_id,
+        username,
+        email,
+        role,
+        profile_photo_url,
+        fitness_goal,
+        training_style,
+        weekly_target,
+        weight_goal,
+        starting_weight,
+        current_weight,
+        goal_weight,
+        weekly_goal,
+        calorie_goal,
+        protein_goal,
+        carbs_goal,
+        fats_goal,
+        created_at,
+    ) = row
     serializer = UserSerializer({
         'id': user_id,
         'username': username,
         'email': email,
         'role': role,
+        'profile_photo_url': profile_photo_url,
+        'fitness_goal': fitness_goal,
+        'training_style': training_style,
+        'weekly_target': weekly_target,
+        'weight_goal': weight_goal,
+        'starting_weight': starting_weight,
+        'current_weight': current_weight,
+        'goal_weight': goal_weight,
+        'weekly_goal': weekly_goal,
+        'calorie_goal': calorie_goal,
+        'protein_goal': protein_goal,
+        'carbs_goal': carbs_goal,
+        'fats_goal': fats_goal,
         'created_at': created_at,
     })
     return Response(serializer.data)
@@ -1744,13 +2121,27 @@ def create_auth_token(user_id):
     return token
 
 
+def build_auth_response(user, response_status=status.HTTP_200_OK):
+    token = create_auth_token(user['id'])
+    response = Response({'user': user}, status=response_status)
+    response.set_cookie(
+        AUTH_COOKIE_NAME,
+        token,
+        max_age=int(AUTH_TOKEN_LIFETIME.total_seconds()),
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite='Lax',
+        path='/',
+    )
+    return response
+
+
 def get_authenticated_user(request):
     header = request.headers.get('Authorization', '')
     prefix = 'Bearer '
-    if not header.startswith(prefix):
-        return None
-
-    token = header[len(prefix):].strip()
+    token = request.COOKIES.get(AUTH_COOKIE_NAME, '')
+    if header.startswith(prefix):
+        token = header[len(prefix):].strip()
     if not token:
         return None
 
@@ -1780,6 +2171,21 @@ def get_authenticated_user(request):
         'role': role,
         'created_at': created_at,
     }
+
+
+@api_view(['POST'])
+def sign_out(request):
+    token = request.COOKIES.get(AUTH_COOKIE_NAME, '')
+    if token:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'UPDATE auth_tokens SET revoked_at = NOW(6) WHERE token_hash = %s',
+                [hash_token(token)],
+            )
+
+    response = Response({'detail': 'Signed out.'})
+    response.delete_cookie(AUTH_COOKIE_NAME, path='/', samesite='Lax')
+    return response
 
 
 def generate_username(email, preferred_name=''):
@@ -1909,18 +2315,15 @@ def sign_up(request):
         cursor.execute('SELECT created_at FROM users WHERE id = %s LIMIT 1', [user_id])
         created_at = cursor.fetchone()[0]
 
-    return Response(
+    return build_auth_response(
         {
-            'token': create_auth_token(user_id),
-            'user': {
-                'id': user_id,
-                'username': username,
-                'email': email,
-                'role': role,
-                'created_at': created_at,
-            }
+            'id': user_id,
+            'username': username,
+            'email': email,
+            'role': role,
+            'created_at': created_at,
         },
-        status=status.HTTP_201_CREATED,
+        status.HTTP_201_CREATED,
     )
 
 
@@ -1952,16 +2355,15 @@ def sign_in(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    return Response({
-        'token': create_auth_token(user_id),
-        'user': {
+    return build_auth_response(
+        {
             'id': user_id,
             'username': username,
             'email': user_email,
             'role': role,
             'created_at': created_at,
-        }
-    })
+        },
+    )
 
 
 @api_view(['POST'])
@@ -1983,10 +2385,7 @@ def social_auth(request):
         )
 
     user = get_or_create_social_user(profile['email'], profile.get('name', ''))
-    return Response({
-        'token': create_auth_token(user['id']),
-        'user': user,
-    })
+    return build_auth_response(user)
 
 
 def generate_reset_code():

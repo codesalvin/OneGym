@@ -6,7 +6,43 @@ class UserSerializer(serializers.Serializer):
     username = serializers.CharField()
     email = serializers.EmailField()
     role = serializers.CharField()
+    profile_photo_url = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    fitness_goal = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    training_style = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    weekly_target = serializers.IntegerField(allow_null=True, required=False)
+    weight_goal = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    starting_weight = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True, required=False)
+    current_weight = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True, required=False)
+    goal_weight = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True, required=False)
+    weekly_goal = serializers.DecimalField(max_digits=5, decimal_places=2, allow_null=True, required=False)
+    calorie_goal = serializers.IntegerField(allow_null=True, required=False)
+    protein_goal = serializers.IntegerField(allow_null=True, required=False)
+    carbs_goal = serializers.IntegerField(allow_null=True, required=False)
+    fats_goal = serializers.IntegerField(allow_null=True, required=False)
     created_at = serializers.DateTimeField()
+
+
+class UserProfileUpdateSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150, required=False)
+    fitness_goal = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    training_style = serializers.CharField(max_length=80, required=False, allow_blank=True, allow_null=True)
+    weekly_target = serializers.IntegerField(min_value=0, max_value=21, required=False, allow_null=True)
+    weight_goal = serializers.CharField(max_length=80, required=False, allow_blank=True, allow_null=True)
+    starting_weight = serializers.DecimalField(max_digits=6, decimal_places=2, min_value=0, required=False, allow_null=True)
+    current_weight = serializers.DecimalField(max_digits=6, decimal_places=2, min_value=0, required=False, allow_null=True)
+    goal_weight = serializers.DecimalField(max_digits=6, decimal_places=2, min_value=0, required=False, allow_null=True)
+    weekly_goal = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    calorie_goal = serializers.IntegerField(min_value=0, max_value=20000, required=False, allow_null=True)
+    protein_goal = serializers.IntegerField(min_value=0, max_value=1000, required=False, allow_null=True)
+    carbs_goal = serializers.IntegerField(min_value=0, max_value=2000, required=False, allow_null=True)
+    fats_goal = serializers.IntegerField(min_value=0, max_value=1000, required=False, allow_null=True)
+
+    def validate_username(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Username is required.')
+
+        return value
 
 
 class FitnessClassSerializer(serializers.Serializer):
@@ -97,6 +133,45 @@ class WorkoutSummarySerializer(serializers.Serializer):
     workout_date = serializers.DateTimeField()
     created_at = serializers.DateTimeField()
     exercise_count = serializers.IntegerField()
+
+
+class ExerciseSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    category = serializers.CharField(allow_blank=True, allow_null=True)
+    default_unit = serializers.CharField(allow_blank=True, allow_null=True)
+    created_at = serializers.DateTimeField()
+
+
+class PersonalRecordSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    user_id = serializers.IntegerField()
+    exercise_id = serializers.IntegerField()
+    exercise_name = serializers.CharField()
+    category = serializers.CharField(allow_blank=True, allow_null=True)
+    record_type = serializers.CharField()
+    value = serializers.DecimalField(max_digits=10, decimal_places=2)
+    unit = serializers.CharField()
+    recorded_at = serializers.DateTimeField()
+    notes = serializers.CharField(allow_blank=True, allow_null=True)
+    created_at = serializers.DateTimeField()
+
+
+class PersonalRecordCreateSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    exercise_name = serializers.CharField(max_length=150)
+    category = serializers.CharField(max_length=80, required=False, allow_blank=True, allow_null=True)
+    record_type = serializers.CharField(max_length=50)
+    value = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
+    unit = serializers.CharField(max_length=30)
+    recorded_at = serializers.DateTimeField(required=False)
+    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_exercise_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Exercise name is required.')
+        return value
 
 
 class MealCreateSerializer(serializers.Serializer):

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavBar } from '../components/NavBar';
 import './AiAssistant.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 const CALORIE_GOAL = 2500;
 const PROTEIN_GOAL = 180;
 const CARBS_GOAL = 300;
