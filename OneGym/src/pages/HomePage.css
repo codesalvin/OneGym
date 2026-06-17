@@ -30,8 +30,8 @@
             --spacing-stack-lg: 48px;
 
             /* Fonts */
-            --font-display: 'Playfair Display', serif;
-            --font-body: 'Inter', sans-serif;
+            --font-display: var(--serif);
+            --font-body: var(--sans);
 
             /* Shadows */
             --card-shadow: 0 10px 30px rgba(0,0,0,0.03);
@@ -724,18 +724,62 @@
 .step-text h2,
 .testimonial blockquote,
 .cta-text h2 {
-  font-family: var(--font-display, 'Playfair Display', Georgia, serif);
+  font-family: var(--font-display);
   font-style: italic;
   font-weight: 700;
   letter-spacing: 0;
 }
 
 .hero-text h1 {
-  font-size: clamp(48px, 7vw, 88px);
-  line-height: 0.98;
+  font-size: clamp(48px, 7vw, 84px);
+  line-height: 1.08;
+  margin-bottom: 24px;
   margin-left: auto;
   margin-right: auto;
-  max-width: 760px;
+  max-width: 700px;
+  padding-bottom: 0.08em;
+}
+
+.hero-text h1 span {
+  animation:
+    championTypingLoop 4.2s steps(8, end) 0.55s infinite,
+    championCursor 0.75s step-end 0.55s infinite;
+  border-right: 0.055em solid #111111;
+  color: #111111;
+  display: inline-block;
+  line-height: inherit;
+  position: relative;
+  text-shadow: none;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+@keyframes championTypingLoop {
+  0%,
+  8% {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  34%,
+  72% {
+    clip-path: inset(0 0 0 0);
+  }
+
+  92%,
+  100% {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+@keyframes championCursor {
+  0%,
+  100% {
+    border-color: transparent;
+  }
+
+  50% {
+    border-color: #111111;
+  }
 }
 
 .hero-text p,
@@ -762,6 +806,7 @@
   font-size: 16px;
   margin-left: auto;
   margin-right: auto;
+  margin-top: 6px;
   max-width: 520px;
 }
 
@@ -903,6 +948,16 @@
   .hero-inner {
     grid-template-columns: 1fr;
     min-height: 0;
+  }
+
+  .hero-text {
+    text-align: center;
+  }
+
+  .hero-text h1,
+  .hero-text p {
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .hero-dumbbell-photo {
@@ -1106,7 +1161,7 @@
 }
 
 .bento-heading h2 {
-  font-family: var(--font-display, 'Playfair Display', Georgia, serif);
+  font-family: var(--font-display);
   font-size: clamp(34px, 4vw, 54px);
   font-style: italic;
   line-height: 1.05;
@@ -1135,7 +1190,7 @@
 
 .bento-card h2 {
   color: #1a1a1a;
-  font-family: var(--font-display, 'Playfair Display', Georgia, serif);
+  font-family: var(--font-display);
   font-size: clamp(27px, 3vw, 38px);
   font-style: italic;
   line-height: 1.08;
@@ -1269,7 +1324,7 @@
 
 .bento-calendar strong {
   display: block;
-  font-family: var(--font-display, 'Playfair Display', Georgia, serif);
+  font-family: var(--font-display);
   font-size: 48px;
   line-height: 1;
   margin: 10px 0;
@@ -1416,8 +1471,10 @@
 .social-strip {
   background: transparent;
   border: 0;
-  padding: 20px 0;
+  margin-top: -22px;
+  padding: 20px 0 14px;
   position: relative;
+  animation: homeFloatUp 0.7s 0.18s ease both;
 }
 
 .social-strip::before,
@@ -1528,8 +1585,22 @@
 }
 
 .difference-editorial {
-  border-top: 1px solid var(--border);
-  padding: 72px 0 76px;
+  border-top: 0;
+  margin-top: -8px;
+  padding: 58px 0 76px;
+  animation: homeFloatUp 0.75s 0.28s ease both;
+}
+
+@keyframes homeFloatUp {
+  from {
+    opacity: 0;
+    transform: translateY(34px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .difference-layout {
@@ -1543,7 +1614,10 @@
 
 .difference-lead h2 {
   color: var(--dark);
+  font-family: var(--font-display);
   font-size: clamp(34px, 4vw, 54px);
+  font-style: italic;
+  font-weight: 700;
   line-height: 1.02;
   margin-bottom: 12px;
 }
@@ -1579,7 +1653,14 @@
   display: block;
   filter: grayscale(12%) contrast(1.04);
   object-fit: cover;
+  transition: transform 0.35s ease, filter 0.35s ease;
   width: 100%;
+}
+
+.difference-lead img:hover,
+.difference-story img:hover {
+  filter: grayscale(0%) contrast(1.05);
+  transform: translateY(-8px);
 }
 
 .difference-lead img {
@@ -1600,7 +1681,10 @@
 
 .difference-story h3 {
   color: var(--dark);
+  font-family: var(--font-display);
   font-size: clamp(26px, 2.8vw, 38px);
+  font-style: italic;
+  font-weight: 700;
   line-height: 1.05;
   margin-bottom: 12px;
 }

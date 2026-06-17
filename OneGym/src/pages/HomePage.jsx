@@ -29,7 +29,7 @@ export function HomePage() {
         <div className="hero-inner">
           <div className="hero-dumbbell-photo" aria-hidden="true"></div>
           <div className="hero-text">
-            <h1>Manage your gym like a champion</h1>
+            <h1>Manage your gym like a <span>champion</span></h1>
             <p>Your gym runs itself while you build something bigger. OneGym takes the daily grind and turns it into simple numbers on a screen.</p>
           </div>
         </div>
@@ -77,7 +77,7 @@ export function HomePage() {
             <div>
               <h3>Live class flow, not admin noise</h3>
               <p>Trainers create sessions, members reserve instantly, and every dashboard updates from the same source of truth.</p>
-              <a href="/booking">Explore member booking</a>
+              <a href="/member-dashboard">Explore member dashboard</a>
             </div>
           </aside>
         </div>

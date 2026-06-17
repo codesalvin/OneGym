@@ -5,7 +5,7 @@ import './SupportPage.css';
 const faqItems = [
   {
     question: 'How do I reset a booking?',
-    answer: 'Open Bookings, switch to My Bookings, and cancel the class you no longer want. The slot returns to the schedule immediately.',
+    answer: 'Open the Classes tab in your dashboard and cancel the class you no longer want. The slot returns to the schedule immediately.',
   },
   {
     question: 'Can trainers see member messages?',

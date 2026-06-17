@@ -78,7 +78,7 @@ export function NavBar() {
                   <span>AI Diet Plan</span>
                   <small>Automated meal suggestions based on goals.</small>
                 </a>
-                <a href="/booking" className="mega-item">
+                <a href="/member-dashboard" className="mega-item">
                   <span>Class Bookings</span>
                   <small>Real-time class registration and PT scheduling.</small>
                 </a>
@@ -139,7 +139,7 @@ export function NavBar() {
                 </div>
               </div>
               <a href={dashboardHref}>{dashboardLabel}</a>
-              {!isTrainer && <a href="/booking">Book Class</a>}
+              {!isTrainer && <a href="/member-dashboard">Classes</a>}
               {!isTrainer && <a href="/trainer-chat">Trainer Chat</a>}
               {!isTrainer && <a href="/ai-assistant">AI Assistant</a>}
               <a href="/profile">Profile</a>

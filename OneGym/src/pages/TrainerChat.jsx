@@ -301,7 +301,7 @@ export function TrainerChatPage() {
         <span>OneGym trainer conversation</span>
         <div>
           <a href="/member-dashboard">Dashboard</a>
-          <a href="/booking">Bookings</a>
+          <a href="/member-dashboard">Classes</a>
         </div>
       </footer>
     </>

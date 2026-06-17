@@ -6,7 +6,7 @@ export function Footer() {
         <footer className="footer">
             <div className="footer-inner">
                 <div className="footer-top">
-                    <a className="footer-logo" href="#">Logo</a>
+                    <a className="footer-logo" href="/">OneGym</a>
                     <ul className="footer-links">
                         <li><a href="#">About us</a></li>
                         <li><a href="#">Contact</a></li>
@@ -33,11 +33,11 @@ export function Footer() {
                     </div>
                 </div>
                 <div className="footer-bottom">
-                    <span>© 2025 OneGym. All rights reserved.</span>
+                    <span>&copy; 2026 OneGym. All rights reserved.</span>
                     <div className="footer-legal">
-                        <a href="#">Privacy policy</a>
-                        <a href="#">Terms of service</a>
-                        <a href="#">Cookie settings</a>
+                        <a href="#">Terms of use</a>
+                        <a href="#">Refund policy</a>
+                        <a href="#">Credits</a>
                     </div>
                 </div>
             </div>

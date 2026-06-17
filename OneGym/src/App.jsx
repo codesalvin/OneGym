@@ -2,8 +2,6 @@ import { Navigate, Route, Routes } from 'react-router';
 import { HomePage } from './pages/HomePage';
 import { MemberDashboardPage } from './pages/MemberDashboard';
 import { SignInPage } from './pages/SignInPage';
-import { BookingPage } from './pages/Booking';
-import { LogWorkoutPage } from './pages/LogWorkout';
 import { AiAssistantPage } from './pages/AiAssistant';
 import { MealHistoryPage } from './pages/MealHistory';
 import { JoinTrainerPage } from './pages/JoinTrainerPage';
@@ -66,8 +64,6 @@ function App() {
       <Route path="/signin" element={<SignInPage />} />
       <Route path="/support" element={<SupportPage />} />
       <Route path="/member-dashboard" element={<MemberOnly><MemberDashboardPage /></MemberOnly>} />
-      <Route path="/booking" element={<MemberOnly><BookingPage /></MemberOnly>} />
-      <Route path="/log-workout" element={<MemberOnly><LogWorkoutPage /></MemberOnly>} />
       <Route path="/ai-assistant" element={<MemberOnly><AiAssistantPage /></MemberOnly>} />
       <Route path="/trainer-chat" element={<AuthOnly><TrainerChatPage /></AuthOnly>} />
       <Route path="/profile" element={<AuthOnly><ProfilePage /></AuthOnly>} />
