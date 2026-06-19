@@ -2,12 +2,9 @@ import { Navigate, Route, Routes } from 'react-router';
 import { HomePage } from './pages/HomePage';
 import { MemberDashboardPage } from './pages/MemberDashboard';
 import { SignInPage } from './pages/SignInPage';
-import { AiAssistantPage } from './pages/AiAssistant';
-import { MealHistoryPage } from './pages/MealHistory';
 import { JoinTrainerPage } from './pages/JoinTrainerPage';
 import { TrainerDashboardPage } from './pages/TrainerDashboard';
 import { TrainerChatPage } from './pages/TrainerChat';
-import { ProfilePage } from './pages/ProfilePage';
 import { SupportPage } from './pages/SupportPage';
 
 function getStoredUser() {
@@ -64,10 +61,7 @@ function App() {
       <Route path="/signin" element={<SignInPage />} />
       <Route path="/support" element={<SupportPage />} />
       <Route path="/member-dashboard" element={<MemberOnly><MemberDashboardPage /></MemberOnly>} />
-      <Route path="/ai-assistant" element={<MemberOnly><AiAssistantPage /></MemberOnly>} />
       <Route path="/trainer-chat" element={<AuthOnly><TrainerChatPage /></AuthOnly>} />
-      <Route path="/profile" element={<AuthOnly><ProfilePage /></AuthOnly>} />
-      <Route path="/meal-history" element={<MemberOnly><MealHistoryPage /></MemberOnly>} />
       <Route path="/join-trainer" element={<JoinTrainerPage />} />
       <Route path="/trainer-dashboard" element={<TrainerOnly><TrainerDashboardPage /></TrainerOnly>} />
     </Routes>

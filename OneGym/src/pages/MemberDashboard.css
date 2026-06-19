@@ -35,6 +35,23 @@
   font: inherit;
 }
 
+.member-dashboard-page select option {
+  background: #0d1210;
+  color: #f7faf8;
+}
+
+.member-dashboard-page input[type="number"] {
+  color-scheme: dark;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.member-dashboard-page input[type="number"]::-webkit-inner-spin-button,
+.member-dashboard-page input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .member-dashboard-page a {
   color: inherit;
   text-decoration: none;
@@ -75,16 +92,14 @@
   width: 42px;
 }
 
-.member-dashboard-page .brand-text strong,
-.member-dashboard-page .profile-info strong {
+.member-dashboard-page .brand-text strong {
   display: block;
   font-size: 16px;
   font-weight: 900;
   line-height: 1.05;
 }
 
-.member-dashboard-page .brand-text span,
-.member-dashboard-page .profile-info small {
+.member-dashboard-page .brand-text span {
   color: var(--muted);
   display: block;
   font-size: 10px;
@@ -127,30 +142,10 @@
   font-size: 21px;
 }
 
-.member-dashboard-page .profile-section {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid var(--line);
-  border-radius: 15px;
-  display: flex;
-  gap: 12px;
-  padding: 13px;
-}
-
 .member-dashboard-page .avatar-img {
   border: 0;
   object-fit: cover;
   padding: 0;
-}
-
-.member-dashboard-page .profile-info {
-  min-width: 0;
-}
-
-.member-dashboard-page .expand-icon {
-  color: var(--muted);
-  font-size: 18px;
-  margin-left: auto;
 }
 
 .member-dashboard-page .main-content {
@@ -158,6 +153,28 @@
   margin-left: var(--sidebar-w);
   min-height: 100vh;
   padding: 34px 36px 58px;
+}
+
+.member-dashboard-page.tab-ai,
+.member-dashboard-page.tab-trainer-chat {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.member-dashboard-page.tab-ai .main-content,
+.member-dashboard-page.tab-trainer-chat .main-content {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 28px;
+}
+
+.member-dashboard-page.tab-ai .content-wrap,
+.member-dashboard-page.tab-trainer-chat .content-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 .member-dashboard-page .content-wrap {
@@ -236,9 +253,29 @@
 }
 
 .member-dashboard-page .top-avatar {
-  border-radius: 12px;
+  border-radius: 999px;
   height: 38px;
   width: 38px;
+}
+
+.member-dashboard-page .top-avatar-link {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  height: 38px;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+  width: 38px;
+}
+
+.member-dashboard-page .top-avatar-link .avatar-img {
+  display: block;
+  height: 100%;
+  width: 100%;
 }
 
 .member-dashboard-page .card {
@@ -294,14 +331,31 @@
 
 .member-dashboard-page .hero-card {
   align-items: center;
+  background:
+    radial-gradient(circle at 82% 24%, rgba(34, 197, 94, 0.22), transparent 29%),
+    radial-gradient(circle at 8% 100%, rgba(40, 214, 191, 0.12), transparent 34%),
+    linear-gradient(145deg, rgba(20, 31, 27, 0.98), rgba(7, 10, 9, 0.96));
   display: flex;
   justify-content: space-between;
   min-height: 250px;
   padding: 42px;
+  position: relative;
+}
+
+.member-dashboard-page .hero-card::after {
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 14px);
+  content: "";
+  inset: 0;
+  opacity: 0.55;
+  pointer-events: none;
+  position: absolute;
 }
 
 .member-dashboard-page .hero-text {
   max-width: 520px;
+  position: relative;
+  text-align: left;
+  z-index: 1;
 }
 
 .member-dashboard-page .hero-kicker {
@@ -314,11 +368,12 @@
 }
 
 .member-dashboard-page .hero-card h2 {
-  font-size: 42px;
-  font-weight: 950;
+  font-size: 46px;
+  font-weight: 1000;
   letter-spacing: -0.055em;
   line-height: 0.96;
   margin: 0 0 18px;
+  text-align: left;
 }
 
 .member-dashboard-page .hero-card h2 span {
@@ -331,6 +386,7 @@
   font-weight: 600;
   line-height: 1.55;
   margin: 0 0 24px;
+  text-align: left;
 }
 
 .member-dashboard-page .hero-actions {
@@ -340,7 +396,19 @@
 
 .member-dashboard-page .hero-visual {
   flex: 0 0 140px;
+  position: relative;
   text-align: center;
+  z-index: 1;
+}
+
+.member-dashboard-page .hero-visual::before {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  content: "";
+  inset: -18px -20px;
+  position: absolute;
+  z-index: -1;
 }
 
 .member-dashboard-page .fuel-label,
@@ -375,6 +443,9 @@
 
 .member-dashboard-page .stat-card {
   align-items: center;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(34, 197, 94, 0.14), transparent 30%),
+    linear-gradient(145deg, rgba(17, 25, 22, 0.98), rgba(8, 12, 11, 0.96));
   display: flex;
   justify-content: space-between;
   min-height: 74px;
@@ -406,15 +477,27 @@
 }
 
 .member-dashboard-page .stat-icon {
+  align-items: center;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.16);
+  border-radius: 999px;
   color: var(--green);
+  display: flex;
   font-size: 23px;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
 }
 
 .member-dashboard-page .teal-icon {
+  background: rgba(40, 214, 191, 0.1);
+  border-color: rgba(40, 214, 191, 0.16);
   color: var(--cyan);
 }
 
 .member-dashboard-page .yellow-icon {
+  background: rgba(232, 169, 0, 0.1);
+  border-color: rgba(232, 169, 0, 0.16);
   color: var(--yellow);
 }
 
@@ -478,6 +561,8 @@
 
 .member-dashboard-page .fill-card,
 .member-dashboard-page .dashboard-class-list {
+  background:
+    linear-gradient(145deg, rgba(18, 26, 23, 0.96), rgba(7, 10, 9, 0.96));
   min-height: 0;
 }
 
@@ -510,6 +595,11 @@
   justify-content: space-between;
   min-height: 92px;
   padding: 18px 20px;
+}
+
+.member-dashboard-page .class-item:nth-child(odd),
+.member-dashboard-page .activity-item:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.024);
 }
 
 .member-dashboard-page .class-item:last-child,
@@ -646,6 +736,9 @@
 }
 
 .member-dashboard-page .nutrition-grid {
+  background:
+    radial-gradient(circle at 92% 14%, rgba(34, 197, 94, 0.12), transparent 24%),
+    linear-gradient(145deg, rgba(18, 26, 23, 0.98), rgba(8, 12, 11, 0.98));
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
 }
@@ -916,8 +1009,105 @@
   padding-top: 6px;
 }
 
+.member-dashboard-page .classes-tab,
+.member-dashboard-page .training-tab,
+.member-dashboard-page .food-tab,
+.member-dashboard-page .leaderboards-tab,
+.member-dashboard-page .profile-tab {
+  display: grid;
+  gap: 18px;
+}
+
+.member-dashboard-page .dashboard-class-list,
+.member-dashboard-page .training-log-panel,
+.member-dashboard-page .training-history-panel,
+.member-dashboard-page .profile-pr-panel,
+.member-dashboard-page .food-history-panel,
+.member-dashboard-page .leaderboard-filter-panel,
+.member-dashboard-page .leaderboard-panel,
+.member-dashboard-page .dashboard-profile-panel,
+.member-dashboard-page .dashboard-profile-hero {
+  background: linear-gradient(145deg, rgba(16, 24, 21, 0.94), rgba(7, 10, 9, 0.96));
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.member-dashboard-page .dashboard-class-list::before,
+.member-dashboard-page .training-log-panel::before,
+.member-dashboard-page .training-history-panel::before,
+.member-dashboard-page .profile-pr-panel::before,
+.member-dashboard-page .food-history-panel::before,
+.member-dashboard-page .leaderboard-filter-panel::before,
+.member-dashboard-page .leaderboard-panel::before,
+.member-dashboard-page .dashboard-profile-panel::before,
+.member-dashboard-page .dashboard-profile-hero::before {
+  display: none;
+}
+
+.member-dashboard-page .dashboard-class-list::after,
+.member-dashboard-page .training-log-panel::after,
+.member-dashboard-page .training-history-panel::after,
+.member-dashboard-page .profile-pr-panel::after,
+.member-dashboard-page .food-history-panel::after,
+.member-dashboard-page .leaderboard-filter-panel::after,
+.member-dashboard-page .leaderboard-panel::after,
+.member-dashboard-page .dashboard-profile-panel::after,
+.member-dashboard-page .dashboard-profile-hero::after {
+  background: var(--green);
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  transition: width 1.25s cubic-bezier(0.65, 0, 0.35, 1);
+  width: 0;
+  z-index: 2;
+}
+
+.member-dashboard-page .dashboard-class-list:hover::after,
+.member-dashboard-page .training-log-panel:hover::after,
+.member-dashboard-page .training-history-panel:hover::after,
+.member-dashboard-page .profile-pr-panel:hover::after,
+.member-dashboard-page .food-history-panel:hover::after,
+.member-dashboard-page .leaderboard-filter-panel:hover::after,
+.member-dashboard-page .leaderboard-panel:hover::after,
+.member-dashboard-page .dashboard-profile-panel:hover::after,
+.member-dashboard-page .dashboard-profile-hero:hover::after {
+  width: 100%;
+}
+
 .member-dashboard-page .class-tab-item {
   min-height: 100px;
+}
+
+.member-dashboard-page .dashboard-class-list {
+  padding-top: 4px;
+}
+
+.member-dashboard-page .class-panel-title {
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.1), transparent 62%);
+  margin: -4px 0 0;
+  padding: 22px 22px 18px;
+}
+
+.member-dashboard-page .class-tab-item {
+  background: rgba(255, 255, 255, 0.025);
+  border-top: 1px solid var(--line);
+  padding: 18px 22px;
+}
+
+.member-dashboard-page .class-tab-item:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.member-dashboard-page .class-time {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.member-dashboard-page .class-slots {
+  color: var(--green);
 }
 
 .member-dashboard-page .my-bookings-panel {
@@ -925,16 +1115,18 @@
 }
 
 .member-dashboard-page .dashboard-tab-switch {
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.055);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 999px;
   display: inline-flex;
   overflow: hidden;
+  padding: 4px;
 }
 
 .member-dashboard-page .dashboard-tab-switch button {
   background: transparent;
   border: 0;
+  border-radius: 999px;
   color: var(--muted);
   cursor: pointer;
   font-size: 12px;
@@ -946,11 +1138,12 @@
 }
 
 .member-dashboard-page .dashboard-tab-switch button + button {
-  border-left: 1px solid var(--line);
+  border-left: 0;
 }
 
 .member-dashboard-page .dashboard-tab-switch button.active {
   background: var(--green);
+  box-shadow: 0 10px 28px rgba(34, 197, 94, 0.22);
   color: var(--green-ink);
 }
 
@@ -960,11 +1153,13 @@
 }
 
 .member-dashboard-page .training-form-grid {
-  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: 16px;
   display: grid;
   gap: 22px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  padding-bottom: 28px;
+  padding: 20px;
 }
 
 .member-dashboard-page .dashboard-field {
@@ -986,14 +1181,30 @@
 }
 
 .member-dashboard-page .dashboard-field input,
-.member-dashboard-page .dashboard-field select {
-  background: rgba(255, 255, 255, 0.045);
+.member-dashboard-page .dashboard-field select,
+.member-dashboard-page .dashboard-field textarea {
+  background: rgba(255, 255, 255, 0.055);
   border: 1px solid var(--line);
   border-radius: 10px;
   color: var(--text);
+  font: inherit;
   min-height: 44px;
   outline: 0;
   padding: 0 12px;
+}
+
+.member-dashboard-page .dashboard-field input:focus,
+.member-dashboard-page .dashboard-field select:focus,
+.member-dashboard-page .dashboard-field textarea:focus {
+  border-color: rgba(34, 197, 94, 0.48);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.11);
+}
+
+.member-dashboard-page .dashboard-field textarea {
+  line-height: 1.55;
+  min-height: 122px;
+  padding: 13px 12px;
+  resize: vertical;
 }
 
 .member-dashboard-page .dashboard-field input[type="date"] {
@@ -1020,13 +1231,20 @@
 
 .member-dashboard-page .exercise-row {
   align-items: end;
-  background: rgba(255, 255, 255, 0.035);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.025));
   border: 1px solid var(--line);
   border-radius: 12px;
   display: grid;
   gap: 14px;
   grid-template-columns: minmax(220px, 1fr) 90px 90px 110px 42px;
   padding: 16px;
+}
+
+.member-dashboard-page .exercise-row:hover,
+.member-dashboard-page .history-row:hover,
+.member-dashboard-page .food-entry:hover,
+.member-dashboard-page .leaderboard-row:hover {
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .member-dashboard-page .exercise-delete,
@@ -1058,6 +1276,11 @@
   gap: 20px;
   grid-template-columns: minmax(0, 1fr) auto auto;
   padding: 20px 0;
+}
+
+.member-dashboard-page .history-row {
+  border-radius: 14px;
+  padding: 18px;
 }
 
 .member-dashboard-page .history-row:first-child {
@@ -1104,6 +1327,1019 @@
   font-weight: 850;
   padding: 8px 10px;
   text-transform: uppercase;
+}
+
+.member-dashboard-page .food-summary-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 20px;
+}
+
+.member-dashboard-page .food-summary-card,
+.member-dashboard-page .food-sort-card {
+  background:
+    linear-gradient(145deg, rgba(18, 28, 24, 0.94), rgba(7, 10, 9, 0.96)),
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.16), transparent 42%);
+  border-color: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+}
+
+.member-dashboard-page .food-summary-card span,
+.member-dashboard-page .food-sort-card span {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .food-summary-card strong {
+  display: block;
+  font-size: 32px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.member-dashboard-page .food-summary-card small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.member-dashboard-page .food-sort-card select,
+.member-dashboard-page .food-sort-card input {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  color-scheme: dark;
+  min-height: 42px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.member-dashboard-page .food-date-label {
+  margin-top: 14px;
+}
+
+.member-dashboard-page .food-sort-card button {
+  background: transparent;
+  border: 0;
+  color: var(--green);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  margin-top: 8px;
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .food-history-panel {
+  padding: 26px;
+}
+
+.member-dashboard-page .food-day {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  margin-bottom: 14px;
+  padding: 22px;
+}
+
+.member-dashboard-page .food-day:first-child {
+  padding-top: 22px;
+}
+
+.member-dashboard-page .food-day:last-child {
+  margin-bottom: 0;
+}
+
+.member-dashboard-page .food-day aside h3 {
+  font-size: 22px;
+  font-weight: 950;
+  margin: 0 0 6px;
+}
+
+.member-dashboard-page .food-day aside p {
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  margin: 0 0 16px;
+}
+
+.member-dashboard-page .food-day aside div {
+  color: var(--muted);
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.member-dashboard-page .food-day aside strong {
+  color: var(--text);
+}
+
+.member-dashboard-page .food-day-items {
+  display: grid;
+  gap: 12px;
+}
+
+.member-dashboard-page .food-entry {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 54px minmax(0, 1fr) auto auto;
+  padding: 14px;
+}
+
+.member-dashboard-page .food-entry img,
+.member-dashboard-page .food-placeholder,
+.member-dashboard-page .activity-icon-bg,
+.member-dashboard-page .trainer-message-label .material-symbols-outlined {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.member-dashboard-page .food-entry img,
+.member-dashboard-page .food-placeholder {
+  border-radius: 10px;
+  height: 54px;
+  object-fit: cover;
+  width: 54px;
+}
+
+.member-dashboard-page .food-placeholder {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  display: flex;
+  justify-content: center;
+}
+
+.member-dashboard-page .food-entry-main span {
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .food-entry-main h3 {
+  font-size: 17px;
+  font-weight: 950;
+  margin: 3px 0;
+}
+
+.member-dashboard-page .food-entry-main p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.member-dashboard-page .food-entry > strong {
+  white-space: nowrap;
+}
+
+.member-dashboard-page .food-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.member-dashboard-page .food-actions button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.member-dashboard-page .food-actions button.danger {
+  color: #f87171;
+}
+
+.member-dashboard-page .ai-dashboard-grid {
+  display: block;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.member-dashboard-page .ai-dashboard-stats {
+  display: none;
+}
+
+.member-dashboard-page .ai-ring {
+  margin: 12px auto 24px;
+}
+
+.member-dashboard-page .ai-macros {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+}
+
+.member-dashboard-page .ai-chat-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+}
+
+.member-dashboard-page.tab-ai .ai-tab,
+.member-dashboard-page.tab-trainer-chat .trainer-chat-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.member-dashboard-page .ai-chat-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  padding: 0 8px 22px 0;
+}
+
+.member-dashboard-page.tab-ai .topbar,
+.member-dashboard-page.tab-trainer-chat .topbar {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 18px;
+}
+
+.member-dashboard-page .ai-dashboard-message {
+  max-width: 82%;
+}
+
+.member-dashboard-page .ai-dashboard-message.user {
+  align-self: flex-end;
+}
+
+.member-dashboard-page .ai-label {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 10px;
+  font-weight: 950;
+  gap: 8px;
+  letter-spacing: 0.18em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .ai-label .material-symbols-outlined {
+  align-items: center;
+  background: var(--green);
+  border-radius: 50%;
+  color: var(--green-ink);
+  display: flex;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.member-dashboard-page .ai-dashboard-bubble {
+  background:
+    linear-gradient(145deg, rgba(18, 28, 24, 0.96), rgba(9, 13, 12, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 18px 58px rgba(0, 0, 0, 0.22);
+  padding: 20px;
+}
+
+.member-dashboard-page .ai-dashboard-message.user .ai-dashboard-bubble {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.member-dashboard-page .ai-dashboard-input,
+.member-dashboard-page .trainer-chat-input {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 10px;
+}
+
+.member-dashboard-page .ai-dashboard-input {
+  border-top: 1px solid var(--line);
+}
+
+.member-dashboard-page .ai-dashboard-message.user .ai-dashboard-bubble {
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.member-dashboard-page .ai-dashboard-bubble h3 {
+  font-size: 24px;
+  font-weight: 950;
+  margin: 0 0 10px;
+}
+
+.member-dashboard-page .ai-dashboard-bubble p {
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.member-dashboard-page .ai-dashboard-message time {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  margin-top: 7px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .ai-card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.member-dashboard-page .ai-mini-card {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.member-dashboard-page .ai-mini-card span {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .ai-mini-card strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.member-dashboard-page .ai-dashboard-input {
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  background: var(--bg);
+  flex: 0 0 auto;
+}
+
+.member-dashboard-page .ai-dashboard-input input {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text);
+  flex: 1;
+  min-height: 46px;
+  outline: 0;
+  padding: 0 14px;
+}
+
+.member-dashboard-page .dashboard-edit-form p {
+  margin-bottom: 18px;
+}
+
+.member-dashboard-page .dashboard-edit-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.member-dashboard-page .dashboard-edit-grid label {
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  font-weight: 950;
+  gap: 7px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .dashboard-edit-grid input,
+.member-dashboard-page .dashboard-edit-grid select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text);
+  min-height: 40px;
+  padding: 0 10px;
+}
+
+.member-dashboard-page .profile-tab {
+  display: grid;
+  gap: 18px;
+}
+
+.member-dashboard-page .leaderboards-tab {
+  display: grid;
+  gap: 18px;
+}
+
+.member-dashboard-page .leaderboard-filter-panel {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 24px;
+  position: relative;
+}
+
+.member-dashboard-page .leaderboard-panel {
+  padding: 0;
+  position: relative;
+}
+
+.member-dashboard-page .leaderboard-head,
+.member-dashboard-page .leaderboard-row {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 70px minmax(220px, 1fr) 140px 150px 140px;
+}
+
+.member-dashboard-page .leaderboard-head {
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  padding: 16px 22px;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .leaderboard-list {
+  display: grid;
+}
+
+.member-dashboard-page .leaderboard-row {
+  border-bottom: 1px solid var(--line);
+  padding: 18px 22px;
+}
+
+.member-dashboard-page .leaderboard-row:last-child {
+  border-bottom: 0;
+}
+
+.member-dashboard-page .leaderboard-rank {
+  align-items: center;
+  background: linear-gradient(145deg, rgba(34, 197, 94, 0.26), rgba(45, 212, 191, 0.08));
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 999px;
+  color: var(--green);
+  display: flex;
+  font-size: 15px;
+  font-weight: 950;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.member-dashboard-page .leaderboard-row:first-child .leaderboard-rank {
+  background: var(--green);
+  color: var(--green-ink);
+}
+
+.member-dashboard-page .leaderboard-row strong {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.member-dashboard-page .leaderboard-row small {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.member-dashboard-page .leaderboard-row span,
+.member-dashboard-page .leaderboard-row time {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.member-dashboard-page .trainer-chat-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.member-dashboard-page.tab-trainer-chat .content-wrap {
+  max-width: none;
+}
+
+.member-dashboard-page.tab-trainer-chat .topbar {
+  margin-bottom: 14px;
+}
+
+.member-dashboard-page .trainer-chat-dashboard {
+  display: grid;
+  flex: 1;
+  gap: 12px;
+  grid-template-columns: 300px minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.member-dashboard-page .trainer-target-panel,
+.member-dashboard-page .trainer-chat-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.member-dashboard-page .trainer-target-panel {
+  background: #050706;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  margin-left: -18px;
+  padding: 8px 14px 8px 18px;
+}
+
+.member-dashboard-page.tab-trainer-chat .card,
+.member-dashboard-page.tab-trainer-chat .trainer-target-panel,
+.member-dashboard-page.tab-trainer-chat .trainer-chat-card,
+.member-dashboard-page.tab-trainer-chat .trainer-message-bubble,
+.member-dashboard-page.tab-trainer-chat .trainer-target-list button {
+  transform: none !important;
+  transition: none !important;
+}
+
+.member-dashboard-page.tab-trainer-chat .card:hover,
+.member-dashboard-page.tab-trainer-chat .trainer-target-panel:hover,
+.member-dashboard-page.tab-trainer-chat .trainer-chat-card:hover,
+.member-dashboard-page.tab-trainer-chat .trainer-message-bubble:hover,
+.member-dashboard-page.tab-trainer-chat .trainer-target-list button:hover {
+  transform: none !important;
+}
+
+.member-dashboard-page .trainer-target-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 2px;
+}
+
+.member-dashboard-page .trainer-target-list button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+}
+
+.member-dashboard-page .trainer-target-list button:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.member-dashboard-page .trainer-target-list button.active {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: transparent;
+}
+
+.member-dashboard-page .trainer-target-list button > span {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 15px;
+  font-weight: 950;
+  height: 48px;
+  justify-content: center;
+  letter-spacing: 0.08em;
+  width: 48px;
+}
+
+.member-dashboard-page .trainer-target-list button.active > span {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--green-ink);
+}
+
+.member-dashboard-page .trainer-chat-heading > span {
+  align-items: center;
+  background: var(--green);
+  border-radius: 999px;
+  color: var(--green-ink);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 950;
+  height: 42px;
+  justify-content: center;
+  letter-spacing: 0.08em;
+  width: 42px;
+}
+
+.member-dashboard-page .trainer-target-list strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 950;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-dashboard-page .trainer-target-list small {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  margin-top: 4px;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-dashboard-page .trainer-chat-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  flex: 1;
+  padding: 0;
+}
+
+.member-dashboard-page .trainer-chat-heading {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 18px;
+}
+
+.member-dashboard-page .trainer-chat-heading h3 {
+  font-size: 28px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 0;
+}
+
+.member-dashboard-page .trainer-message-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 4px 22px 0;
+}
+
+.member-dashboard-page .trainer-message {
+  max-width: 78%;
+}
+
+.member-dashboard-page .trainer-message.user {
+  align-self: flex-end;
+}
+
+.member-dashboard-page .trainer-message-label {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 10px;
+  font-weight: 950;
+  gap: 8px;
+  letter-spacing: 0.14em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .trainer-message-label .material-symbols-outlined {
+  align-items: center;
+  background: rgba(34, 197, 94, 0.16);
+  border-radius: 999px;
+  color: var(--green);
+  display: flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.member-dashboard-page .trainer-message-bubble {
+  background: linear-gradient(145deg, rgba(18, 28, 24, 0.94), rgba(9, 13, 12, 0.94));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.member-dashboard-page .trainer-message.user .trainer-message-bubble {
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.member-dashboard-page .trainer-message-bubble h4 {
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+  margin: 0 0 8px;
+}
+
+.member-dashboard-page .trainer-message-bubble p {
+  color: var(--muted);
+  font-weight: 650;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.member-dashboard-page .trainer-message.user .trainer-message-bubble p {
+  color: var(--text);
+}
+
+.member-dashboard-page .trainer-message time {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  margin-top: 7px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .trainer-chat-input {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  padding-top: 18px;
+}
+
+.member-dashboard-page .trainer-chat-input input {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text);
+  flex: 1;
+  min-height: 46px;
+  outline: 0;
+  padding: 0 14px;
+}
+
+.member-dashboard-page .trainer-chat-input button {
+  min-width: 46px;
+  padding: 0;
+}
+
+.member-dashboard-page .dashboard-profile-hero {
+  align-items: center;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 28px;
+  position: relative;
+}
+
+.member-dashboard-page .dashboard-profile-photo {
+  position: relative;
+  width: 132px;
+}
+
+.member-dashboard-page .dashboard-profile-photo img,
+.member-dashboard-page .dashboard-profile-photo > span {
+  align-items: center;
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, var(--green), #b8ff7a);
+  border-radius: 30px;
+  color: var(--green-ink);
+  display: flex;
+  font-size: 34px;
+  font-weight: 950;
+  justify-content: center;
+  object-fit: cover;
+  width: 132px;
+}
+
+.member-dashboard-page .dashboard-profile-photo label {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  bottom: -12px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 950;
+  left: 50%;
+  letter-spacing: 0.12em;
+  padding: 8px 12px;
+  position: absolute;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.member-dashboard-page .dashboard-profile-photo input {
+  display: none;
+}
+
+.member-dashboard-page .dashboard-profile-hero h2,
+.member-dashboard-page .profile-panel-title h3 {
+  font-size: 32px;
+  font-weight: 950;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  margin: 0;
+}
+
+.member-dashboard-page .dashboard-profile-hero p:not(.hero-kicker),
+.member-dashboard-page .profile-helper,
+.member-dashboard-page .profile-goal-summary p {
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.6;
+  margin: 10px 0 0;
+}
+
+.member-dashboard-page .dashboard-profile-grid {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+}
+
+.member-dashboard-page .dashboard-profile-panel,
+.member-dashboard-page .profile-pr-panel {
+  display: grid;
+  gap: 18px;
+  padding: 26px;
+}
+
+.member-dashboard-page .training-pr-panel {
+  margin-top: 18px;
+}
+
+.member-dashboard-page .profile-panel-title {
+  display: grid;
+  gap: 8px;
+}
+
+.member-dashboard-page .profile-panel-title.compact {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.member-dashboard-page .profile-field-grid,
+.member-dashboard-page .profile-macro-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.member-dashboard-page .profile-field-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.member-dashboard-page .profile-goal-summary {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.member-dashboard-page .profile-goal-summary .material-symbols-outlined {
+  align-items: center;
+  background: rgba(34, 197, 94, 0.15);
+  border-radius: 999px;
+  color: var(--green);
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  margin-bottom: 14px;
+  width: 34px;
+}
+
+.member-dashboard-page .profile-goal-summary strong {
+  color: var(--text);
+  display: block;
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.member-dashboard-page .profile-pr-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(190px, 1.2fr) repeat(5, minmax(92px, 0.7fr)) auto;
+}
+
+.member-dashboard-page .profile-pr-form .pr-notes {
+  grid-column: 1 / -2;
+}
+
+.member-dashboard-page .profile-pr-list {
+  display: grid;
+  gap: 10px;
+}
+
+.member-dashboard-page .profile-pr-list article {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) auto 34px;
+  padding: 16px;
+}
+
+.member-dashboard-page .profile-pr-list span {
+  color: var(--green);
+  display: block;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .profile-pr-list h3 {
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 950;
+  margin: 0;
+}
+
+.member-dashboard-page .profile-pr-list p {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  margin: 4px 0 0;
+}
+
+.member-dashboard-page .profile-pr-list strong {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.member-dashboard-page .profile-pr-list button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #fb7185;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
 }
 
 .member-dashboard-page .dashboard-modal-backdrop,
@@ -1190,13 +2426,47 @@
   .member-dashboard-page .hero-layout,
   .member-dashboard-page .middle-grid,
   .member-dashboard-page .dashboard-classes-grid,
-  .member-dashboard-page .nutrition-grid {
+  .member-dashboard-page .nutrition-grid,
+  .member-dashboard-page .dashboard-profile-grid,
+  .member-dashboard-page .trainer-chat-dashboard {
     grid-template-columns: 1fr;
+  }
+
+  .member-dashboard-page .leaderboard-filter-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .member-dashboard-page .leaderboard-head {
+    display: none;
+  }
+
+  .member-dashboard-page .leaderboard-row {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .member-dashboard-page .leaderboard-row > span,
+  .member-dashboard-page .leaderboard-row > strong,
+  .member-dashboard-page .leaderboard-row > time {
+    grid-column: 2;
   }
 
   .member-dashboard-page .quick-log {
     border-left: 0;
     border-top: 1px solid var(--line);
+  }
+
+  .member-dashboard-page.tab-trainer-chat .trainer-target-list {
+    max-height: 190px;
+  }
+
+  .member-dashboard-page.tab-trainer-chat .trainer-target-panel {
+    border-right: 0;
+    margin-left: 0;
+    padding: 0;
+  }
+
+  .member-dashboard-page .food-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1234,18 +2504,43 @@
   }
 
   .member-dashboard-page .hero-card {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
     min-height: 0;
-    padding: 28px;
+    padding: 28px 22px;
   }
 
   .member-dashboard-page .hero-card h2 {
-    font-size: 34px;
+    font-size: 31px;
+    line-height: 1.02;
+  }
+
+  .member-dashboard-page .hero-card p {
+    font-size: 14px;
+    margin-bottom: 18px;
+  }
+
+  .member-dashboard-page .hero-actions {
+    align-items: stretch;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr 1fr;
   }
 
   .member-dashboard-page .hero-visual {
-    align-self: center;
+    align-self: stretch;
+    flex: none;
+    margin-top: 18px;
+    padding: 18px 0 8px;
+  }
+
+  .member-dashboard-page .hero-visual::before {
+    inset: 0;
+  }
+
+  .member-dashboard-page .daily-fuel-ring {
+    height: 92px;
+    width: 92px;
   }
 
   .member-dashboard-page .class-item,
@@ -1254,9 +2549,31 @@
   .member-dashboard-page .macro-bars,
   .member-dashboard-page .training-form-grid,
   .member-dashboard-page .exercise-row,
-  .member-dashboard-page .history-row {
+  .member-dashboard-page .history-row,
+  .member-dashboard-page .dashboard-profile-hero,
+  .member-dashboard-page .profile-field-grid,
+  .member-dashboard-page .profile-macro-grid,
+  .member-dashboard-page .profile-pr-form,
+  .member-dashboard-page .profile-pr-list article {
     align-items: stretch;
     grid-template-columns: 1fr;
+  }
+
+  .member-dashboard-page .trainer-chat-dashboard {
+    min-height: 0;
+  }
+
+  .member-dashboard-page .trainer-message {
+    max-width: 100%;
+  }
+
+  .member-dashboard-page .food-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .member-dashboard-page .profile-pr-form .pr-notes,
+  .member-dashboard-page .profile-field-grid .wide {
+    grid-column: auto;
   }
 
   .member-dashboard-page .class-item {

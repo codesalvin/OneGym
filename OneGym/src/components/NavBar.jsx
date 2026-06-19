@@ -74,7 +74,7 @@ export function NavBar() {
                   <span>Fitness Dashboard</span>
                   <small>Integrated workout tracking and biometric progress.</small>
                 </a>
-                <a href="/ai-assistant" className="mega-item">
+                <a href="/member-dashboard" className="mega-item">
                   <span>AI Diet Plan</span>
                   <small>Automated meal suggestions based on goals.</small>
                 </a>
@@ -139,10 +139,10 @@ export function NavBar() {
                 </div>
               </div>
               <a href={dashboardHref}>{dashboardLabel}</a>
-              {!isTrainer && <a href="/member-dashboard">Classes</a>}
-              {!isTrainer && <a href="/trainer-chat">Trainer Chat</a>}
-              {!isTrainer && <a href="/ai-assistant">AI Assistant</a>}
-              <a href="/profile">Profile</a>
+              {!isTrainer && <a href="/member-dashboard?tab=classes">Classes</a>}
+              {!isTrainer && <a href="/member-dashboard?tab=trainer-chat">Trainer Chat</a>}
+              {!isTrainer && <a href="/member-dashboard?tab=ai">AI Assistant</a>}
+              <a href="/member-dashboard?tab=profile">Profile</a>
               <a href="#">Settings</a>
               {!isTrainer && <a href="#">Membership</a>}
               <button type="button" onClick={handleLogout}>Logout</button>

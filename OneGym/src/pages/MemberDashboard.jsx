@@ -12,10 +12,47 @@ const navItems = [
   { icon: 'grid_view', label: 'Overview', tab: 'overview' },
   { icon: 'event_available', label: 'Classes', tab: 'classes' },
   { icon: 'fitness_center', label: 'Training', tab: 'training' },
-  { icon: 'restaurant', label: 'Food Log', href: '/meal-history' },
-  { icon: 'smart_toy', label: 'AI Assistant', href: '/ai-assistant' },
-  { icon: 'account_circle', label: 'Profile', href: '/profile' },
+  { icon: 'restaurant', label: 'Food Log', tab: 'food' },
+  { icon: 'smart_toy', label: 'AI Assistant', tab: 'ai' },
+  { icon: 'forum', label: 'Trainer Chat', tab: 'trainer-chat' },
+  { icon: 'leaderboard', label: 'Leaderboards', tab: 'leaderboards' },
+  { icon: 'account_circle', label: 'Profile', tab: 'profile' },
 ];
+
+const tabHeadings = {
+  overview: {
+    title: 'Dashboard',
+    description: 'Here is your fitness overview.',
+  },
+  classes: {
+    title: 'Classes',
+    description: 'Book sessions, review upcoming classes, and manage your reservations.',
+  },
+  training: {
+    title: 'Training',
+    description: 'Log workouts and review your training history.',
+  },
+  food: {
+    title: 'Food Log',
+    description: 'Track meals, macros, and daily nutrition progress.',
+  },
+  ai: {
+    title: 'AI Assistant',
+    description: 'Get meal guidance based on your current nutrition progress.',
+  },
+  'trainer-chat': {
+    title: 'Trainer Chat',
+    description: 'Message trainers about classes, form, recovery, and session prep.',
+  },
+  leaderboards: {
+    title: 'Leaderboards',
+    description: 'Filter your personal records and compare your strongest lifts.',
+  },
+  profile: {
+    title: 'Profile',
+    description: 'Update your goals, profile photo, nutrition targets, and personal records.',
+  },
+};
 
 const emptyMealForm = {
   mealType: 'breakfast',
@@ -33,12 +70,121 @@ const emptyExercise = {
   weight: '',
 };
 
+const PR_EXERCISE_CATEGORIES = {
+  Strength: [
+    'Bench Press',
+    'Squat',
+    'Deadlift',
+    'Overhead Press',
+    'Barbell Row',
+    'Leg Press',
+    'Hip Thrust',
+    'Pull-Up',
+  ],
+  Cardio: [
+    'Running',
+    'Biking',
+    'Rowing',
+    'Swimming',
+    'Stair Climber',
+    'Elliptical',
+    'Skipping',
+  ],
+  Mobility: [
+    'Front Split',
+    'Side Split',
+    'Shoulder Mobility',
+    'Hip Mobility',
+    'Deep Squat Hold',
+    'Backbend',
+  ],
+  Bodyweight: [
+    'Push-Up',
+    'Pull-Up',
+    'Dip',
+    'Plank',
+    'Burpee',
+    'Pistol Squat',
+    'Handstand Hold',
+  ],
+};
+
+const PR_RECORD_TYPE_LABELS = {
+  weight: 'Weight',
+  reps: 'Reps',
+  time: 'Time',
+  distance: 'Distance',
+  volume: 'Volume',
+};
+
+const PR_EXERCISE_TYPE_OPTIONS = {
+  'Bench Press': ['weight', 'reps', 'volume'],
+  Squat: ['weight', 'reps', 'volume'],
+  Deadlift: ['weight', 'reps', 'volume'],
+  'Overhead Press': ['weight', 'reps', 'volume'],
+  'Barbell Row': ['weight', 'reps', 'volume'],
+  'Leg Press': ['weight', 'reps', 'volume'],
+  'Hip Thrust': ['weight', 'reps', 'volume'],
+  'Pull-Up': ['reps', 'weight', 'volume'],
+  Running: ['time', 'distance'],
+  Biking: ['time', 'distance'],
+  Rowing: ['time', 'distance'],
+  Swimming: ['time', 'distance'],
+  'Stair Climber': ['time'],
+  Elliptical: ['time', 'distance'],
+  Skipping: ['time', 'reps'],
+  'Front Split': ['time'],
+  'Side Split': ['time'],
+  'Shoulder Mobility': ['time'],
+  'Hip Mobility': ['time'],
+  'Deep Squat Hold': ['time'],
+  Backbend: ['time'],
+  'Push-Up': ['reps', 'time'],
+  Dip: ['reps', 'weight', 'volume'],
+  Plank: ['time'],
+  Burpee: ['reps', 'time'],
+  'Pistol Squat': ['reps', 'weight'],
+  'Handstand Hold': ['time'],
+};
+
+const PR_RECORD_TYPE_UNITS = {
+  weight: 'kg',
+  reps: 'reps',
+  time: 'min',
+  distance: 'km',
+  volume: 'kg',
+};
+
+const emptyPrForm = {
+  exercise_name: PR_EXERCISE_CATEGORIES.Strength[0],
+  category: 'Strength',
+  record_type: 'weight',
+  value: '',
+  unit: 'kg',
+  recorded_at: new Date().toISOString().slice(0, 10),
+  notes: '',
+};
+
+const MEAL_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'breakfast', label: 'Breakfast' },
+  { value: 'lunch', label: 'Lunch' },
+  { value: 'dinner', label: 'Dinner' },
+  { value: 'snacks', label: 'Snacks' },
+];
+
 function getStoredUser() {
   try {
     return JSON.parse(localStorage.getItem('onegymUser') || 'null');
   } catch {
     return null;
   }
+}
+
+function getInitialTab() {
+  if (typeof window === 'undefined') return 'overview';
+  const tab = new URLSearchParams(window.location.search).get('tab');
+  return ['overview', 'classes', 'training', 'food', 'ai', 'trainer-chat', 'leaderboards', 'profile'].includes(tab) ? tab : 'overview';
 }
 
 async function parseResponse(response) {
@@ -58,6 +204,73 @@ async function parseResponse(response) {
 function toNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function profileFormFromUser(user = {}) {
+  return {
+    username: user.username || '',
+    fitness_goal: user.fitness_goal || '',
+    training_style: user.training_style || '',
+    weekly_target: user.weekly_target || 3,
+    weight_goal: user.weight_goal || '',
+    starting_weight: user.starting_weight || '',
+    current_weight: user.current_weight || '',
+    goal_weight: user.goal_weight || '',
+    weekly_goal: user.weekly_goal || '',
+    calorie_goal: user.calorie_goal || CALORIE_GOAL,
+    protein_goal: user.protein_goal || PROTEIN_GOAL,
+    carbs_goal: user.carbs_goal || CARBS_GOAL,
+    fats_goal: user.fats_goal || FATS_GOAL,
+  };
+}
+
+function suggestDailyFuel(form) {
+  const currentWeight = toNumber(form.current_weight);
+  const goalWeight = toNumber(form.goal_weight);
+  const weeklyGoal = toNumber(form.weekly_goal);
+  const weeklySessions = toNumber(form.weekly_target);
+  const style = form.training_style;
+
+  if (!currentWeight) return null;
+
+  const direction = goalWeight
+    ? Math.sign(goalWeight - currentWeight)
+    : form.weight_goal === 'Lose weight' ? -1 : form.weight_goal === 'Gain weight' ? 1 : 0;
+  const styleMultiplier = {
+    Strength: 34,
+    Hypertrophy: 36,
+    'Fat loss': 30,
+    Mobility: 29,
+    'Athletic conditioning': 37,
+  }[style] || 32;
+  const sessionAdjustment = weeklySessions >= 5 ? 2 : weeklySessions >= 3 ? 1 : weeklySessions <= 1 ? -1 : 0;
+  const maintenance = Math.round(currentWeight * (styleMultiplier + sessionAdjustment));
+  const weeklyAdjustment = weeklyGoal ? Math.round((7700 * Math.abs(weeklyGoal)) / 7) * direction : 0;
+  const calories = Math.max(1200, maintenance + weeklyAdjustment);
+  const proteinMultiplier = {
+    Strength: 1.9,
+    Hypertrophy: 2,
+    'Fat loss': 2.2,
+    Mobility: 1.6,
+    'Athletic conditioning': 1.8,
+  }[style] || (direction < 0 ? 2.1 : 1.8);
+  const fatMultiplier = {
+    Strength: 0.8,
+    Hypertrophy: 0.75,
+    'Fat loss': 0.7,
+    Mobility: 0.85,
+    'Athletic conditioning': 0.75,
+  }[style] || 0.8;
+  const protein = Math.round(currentWeight * proteinMultiplier);
+  const fats = Math.round(currentWeight * fatMultiplier);
+  const carbs = Math.max(0, Math.round((calories - protein * 4 - fats * 9) / 4));
+
+  return {
+    calorie_goal: calories,
+    protein_goal: protein,
+    carbs_goal: carbs,
+    fats_goal: fats,
+  };
 }
 
 function pct(value, goal) {
@@ -174,6 +387,12 @@ function displayNameFor(user) {
   return user?.username || user?.name || user?.email?.split('@')[0] || 'Member';
 }
 
+function formatMessageTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
+}
+
 function classIdFor(item) {
   return Number(item?.id || item?.class_id || 0);
 }
@@ -189,6 +408,53 @@ function normalizeMealType(value) {
 
 function formatMealType(value) {
   return normalizeMealType(value).replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function mealDate(meal) {
+  return new Date(meal.meal_date || meal.logged_at || meal.created_at);
+}
+
+function formatMealTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
+}
+
+function summarizeMeals(rows) {
+  return rows.reduce(
+    (sum, meal) => ({
+      calories: sum.calories + toNumber(meal.calories || meal.kcal),
+      protein: sum.protein + toNumber(meal.protein_g || meal.protein),
+      carbs: sum.carbs + toNumber(meal.carbs_g || meal.carbs || meal.carbohydrates_g),
+      fats: sum.fats + toNumber(meal.fats_g || meal.fats || meal.fat_g),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fats: 0 },
+  );
+}
+
+function groupMealsByDay(rows) {
+  const groups = new Map();
+  rows.forEach((meal) => {
+    const key = dateKey(mealDate(meal));
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(meal);
+  });
+  return [...groups.entries()].map(([key, dayMeals]) => ({ key, meals: dayMeals, totals: summarizeMeals(dayMeals) }));
+}
+
+function formatDayTitle(key) {
+  if (key === dateKey()) return 'Today';
+  if (key === dateKey(addDays(new Date(), -1))) return 'Yesterday';
+  return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(`${key}T12:00:00`));
+}
+
+function buildAiIntro(displayName, totals, mealCount) {
+  const remainingCalories = Math.max(0, CALORIE_GOAL - totals.calories);
+  const remainingProtein = Math.max(0, PROTEIN_GOAL - totals.protein);
+  if (!mealCount) {
+    return `Good afternoon, ${displayName}. No meals are logged yet today. Add a meal and I can tailor recommendations around your calories and macros.`;
+  }
+  return `Good afternoon, ${displayName}. You have logged ${Math.round(totals.calories).toLocaleString()} kcal and ${Math.round(totals.protein)}g protein today. You still have about ${Math.round(remainingCalories).toLocaleString()} kcal and ${Math.round(remainingProtein)}g protein available.`;
 }
 
 function workoutDate(workout) {
@@ -232,7 +498,8 @@ function workoutStats(workouts) {
 
 export function MemberDashboardPage() {
   const [isNavOpen, setIsNavOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+  const [user, setUser] = useState(() => getStoredUser());
   const [upcomingClasses, setUpcomingClasses] = useState([]);
   const [classesMessage, setClassesMessage] = useState('');
   const [bookedClassIds, setBookedClassIds] = useState(new Set());
@@ -250,10 +517,50 @@ export function MemberDashboardPage() {
   const [isMealError, setIsMealError] = useState(false);
   const [isSavingMeal, setIsSavingMeal] = useState(false);
   const [isAnalyzingMeal, setIsAnalyzingMeal] = useState(false);
-  const user = useMemo(getStoredUser, []);
+  const [mealFilter, setMealFilter] = useState('all');
+  const [mealSort, setMealSort] = useState('newest');
+  const [mealDateFilter, setMealDateFilter] = useState('');
+  const [editingMeal, setEditingMeal] = useState(null);
+  const [pendingMealDelete, setPendingMealDelete] = useState(null);
+  const [isSavingMealEdit, setIsSavingMealEdit] = useState(false);
+  const [isDeletingMeal, setIsDeletingMeal] = useState(false);
+  const [aiInput, setAiInput] = useState('');
+  const [aiMessages, setAiMessages] = useState([]);
+  const [isAiSending, setIsAiSending] = useState(false);
+  const [chatTargets, setChatTargets] = useState([]);
+  const [selectedTrainerId, setSelectedTrainerId] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('trainerId') || '';
+  });
+  const [trainerMessages, setTrainerMessages] = useState([]);
+  const [trainerChatInput, setTrainerChatInput] = useState('');
+  const [trainerChatStatus, setTrainerChatStatus] = useState('');
+  const [isTrainerChatError, setIsTrainerChatError] = useState(false);
+  const [isTrainerChatSending, setIsTrainerChatSending] = useState(false);
+  const [profileForm, setProfileForm] = useState(() => profileFormFromUser(getStoredUser() || {}));
+  const [profilePhotoFile, setProfilePhotoFile] = useState(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState(() => resolveMediaUrl(getStoredUser()?.profile_photo_url || ''));
+  const [profileMessage, setProfileMessage] = useState('');
+  const [isProfileError, setIsProfileError] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [manualFuelEdit, setManualFuelEdit] = useState(false);
+  const [personalRecords, setPersonalRecords] = useState([]);
+  const [leaderboardFilters, setLeaderboardFilters] = useState({
+    category: 'all',
+    exercise: 'all',
+    recordType: 'all',
+  });
+  const [prForm, setPrForm] = useState(emptyPrForm);
+  const [isSavingPr, setIsSavingPr] = useState(false);
+  const [prMessage, setPrMessage] = useState('');
   const displayName = displayNameFor(user);
   const initials = initialsFor(user);
   const profilePhotoUrl = resolveMediaUrl(user?.profile_photo_url || user?.profile_picture || user?.avatar_url);
+  const selectedTrainer = useMemo(
+    () => chatTargets.find((target) => String(target.id) === String(selectedTrainerId)) || null,
+    [chatTargets, selectedTrainerId],
+  );
+  const tabHeading = tabHeadings[activeTab] || tabHeadings.overview;
   const todayDate = toDateInputValue();
   const registrationDate = toDateInputValue(user?.created_at) || todayDate;
   const [trainingView, setTrainingView] = useState('log');
@@ -270,6 +577,8 @@ export function MemberDashboardPage() {
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [pendingWorkoutDelete, setPendingWorkoutDelete] = useState(null);
   const [trainingNotice, setTrainingNotice] = useState(null);
+  const [mealNotice, setMealNotice] = useState(null);
+  const [aiNotice, setAiNotice] = useState(null);
   const [isDeletingWorkout, setIsDeletingWorkout] = useState(false);
 
   const loadMeals = useCallback(async () => {
@@ -310,6 +619,43 @@ export function MemberDashboardPage() {
     setBookings(rows);
     setBookedClassIds(new Set(rows.map((booking) => Number(booking.class_id || booking.class?.id || booking.id)).filter(Boolean)));
   }, [user?.id]);
+
+  const loadPersonalRecords = useCallback(async () => {
+    if (!user?.id) {
+      setPersonalRecords([]);
+      return;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/${user.id}/personal-records/`, {
+      credentials: 'include',
+    });
+    const data = await parseResponse(response);
+    if (!response.ok) throw new Error(data.detail || 'Unable to load personal records.');
+    setPersonalRecords(Array.isArray(data) ? data : []);
+  }, [user?.id]);
+
+  const loadTrainerMessages = useCallback(async (trainerId = selectedTrainerId) => {
+    if (!user?.id || !trainerId) {
+      setTrainerMessages([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${user.id}/trainer-messages/?trainer_id=${trainerId}`, {
+        credentials: 'include',
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) throw new Error(data.detail || 'Unable to load trainer chat.');
+
+      setTrainerMessages(Array.isArray(data) ? data : []);
+      setIsTrainerChatError(false);
+      setTrainerChatStatus('');
+    } catch (error) {
+      setTrainerMessages([]);
+      setIsTrainerChatError(true);
+      setTrainerChatStatus(error instanceof Error ? error.message : 'Unable to load trainer chat.');
+    }
+  }, [selectedTrainerId, user?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -365,9 +711,123 @@ export function MemberDashboardPage() {
     loadMeals();
   }, [loadMeals]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let isMounted = true;
+    fetch(`${API_BASE_URL}/users/${user.id}/`, { credentials: 'include' })
+      .then(async (response) => {
+        const data = await parseResponse(response);
+        if (!response.ok) throw new Error(data.detail || 'Unable to load profile.');
+        return data;
+      })
+      .then((data) => {
+        if (!isMounted) return;
+        const updated = { ...user, ...data, profile_photo_url: resolveMediaUrl(data.profile_photo_url) };
+        setUser(updated);
+        setProfileForm(profileFormFromUser(updated));
+        setProfilePhotoPreview(resolveMediaUrl(data.profile_photo_url));
+        localStorage.setItem('onegymUser', JSON.stringify(updated));
+        window.dispatchEvent(new Event('onegym-auth-change'));
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setProfileMessage(error instanceof Error ? error.message : 'Unable to load profile.');
+        setIsProfileError(true);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadPersonalRecords().catch((error) => setPrMessage(error instanceof Error ? error.message : 'Unable to load personal records.'));
+  }, [loadPersonalRecords]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadChatTargets() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/`);
+        const data = await parseResponse(response);
+        if (!response.ok) throw new Error(data.detail || 'Unable to load trainers.');
+
+        const trainers = (Array.isArray(data) ? data : []).filter((item) => item.role === 'trainer');
+        if (!isMounted) return;
+        setChatTargets(trainers);
+
+        if (!selectedTrainerId && trainers.length) {
+          setSelectedTrainerId(String(trainers[0].id));
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        setIsTrainerChatError(true);
+        setTrainerChatStatus(error instanceof Error ? error.message : 'Unable to load trainers.');
+      }
+    }
+
+    loadChatTargets();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedTrainerId]);
+
+  useEffect(() => {
+    if (selectedTrainerId) {
+      loadTrainerMessages(selectedTrainerId);
+    }
+  }, [loadTrainerMessages, selectedTrainerId]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setAiMessages([]);
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/users/${user.id}/ai-messages/`)
+      .then(async (response) => {
+        const data = await parseResponse(response);
+        if (!response.ok) throw new Error(data.detail || 'Unable to load AI messages.');
+        return data;
+      })
+      .then((data) => {
+        setAiMessages(Array.isArray(data) ? data.map((message) => ({
+          id: message.id,
+          role: message.role,
+          title: message.title || undefined,
+          body: message.body,
+          cards: Array.isArray(message.cards) ? message.cards : [],
+          quote: message.note || '',
+          time: message.role === 'user' ? formatMealTime(message.created_at) : undefined,
+        })) : []);
+      })
+      .catch(() => setAiMessages([]));
+  }, [user?.id]);
+
   useEffect(() => () => {
     if (mealPhotoPreview) URL.revokeObjectURL(mealPhotoPreview);
   }, [mealPhotoPreview]);
+
+  useEffect(() => () => {
+    if (profilePhotoPreview?.startsWith('blob:')) URL.revokeObjectURL(profilePhotoPreview);
+  }, [profilePhotoPreview]);
+
+  useEffect(() => {
+    if (manualFuelEdit) return;
+    const suggested = suggestDailyFuel(profileForm);
+    if (!suggested) return;
+    setProfileForm((current) => ({ ...current, ...suggested }));
+  }, [
+    profileForm.current_weight,
+    profileForm.goal_weight,
+    profileForm.weekly_goal,
+    profileForm.weekly_target,
+    profileForm.weight_goal,
+    profileForm.training_style,
+    manualFuelEdit,
+  ]);
 
   const stats = useMemo(() => workoutStats(workouts), [workouts]);
   const visibleClasses = upcomingClasses.slice(0, 3);
@@ -394,13 +854,278 @@ export function MemberDashboardPage() {
     };
   }, [meals]);
 
+  const filteredMeals = useMemo(() => {
+    const visible = meals.filter((meal) => {
+      const typeMatch = mealFilter === 'all' || normalizeMealType(meal.meal_type) === mealFilter;
+      const dateMatch = !mealDateFilter || dateKey(mealDate(meal)) === mealDateFilter;
+      return typeMatch && dateMatch;
+    });
+    return [...visible].sort((first, second) => {
+      if (mealSort === 'oldest') return mealDate(first) - mealDate(second);
+      if (mealSort === 'highest-protein') return toNumber(second.protein_g || second.protein) - toNumber(first.protein_g || first.protein);
+      if (mealSort === 'lowest-calories') return toNumber(first.calories || first.kcal) - toNumber(second.calories || second.kcal);
+      return mealDate(second) - mealDate(first);
+    });
+  }, [mealDateFilter, mealFilter, mealSort, meals]);
+
+  const groupedMeals = useMemo(() => groupMealsByDay(filteredMeals), [filteredMeals]);
+  const foodTotals = useMemo(() => summarizeMeals(filteredMeals), [filteredMeals]);
+  const aiIntro = useMemo(() => ({
+    id: 'intro',
+    role: 'assistant',
+    title: `Good afternoon, ${displayName}.`,
+    body: buildAiIntro(displayName, nutrition, nutrition.todaysMeals.length),
+  }), [displayName, nutrition]);
+  const visibleAiMessages = [aiIntro, ...aiMessages];
+  const leaderboardOptions = useMemo(() => {
+    const categories = [...new Set(personalRecords.map((record) => record.category).filter(Boolean))].sort();
+    const exercises = [...new Set(personalRecords.map((record) => record.exercise_name).filter(Boolean))].sort();
+    const recordTypes = [...new Set(personalRecords.map((record) => record.record_type).filter(Boolean))].sort();
+    return { categories, exercises, recordTypes };
+  }, [personalRecords]);
+  const leaderboardRows = useMemo(() => {
+    return personalRecords
+      .filter((record) => {
+        const categoryMatch = leaderboardFilters.category === 'all' || record.category === leaderboardFilters.category;
+        const exerciseMatch = leaderboardFilters.exercise === 'all' || record.exercise_name === leaderboardFilters.exercise;
+        const typeMatch = leaderboardFilters.recordType === 'all' || record.record_type === leaderboardFilters.recordType;
+        return categoryMatch && exerciseMatch && typeMatch;
+      })
+      .sort((first, second) => {
+        const valueDiff = toNumber(second.value) - toNumber(first.value);
+        if (valueDiff !== 0) return valueDiff;
+        return new Date(second.recorded_at) - new Date(first.recorded_at);
+      });
+  }, [leaderboardFilters, personalRecords]);
+
   function updateMealField(field, value) {
     setMealForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateLeaderboardFilter(field, value) {
+    setLeaderboardFilters((current) => ({ ...current, [field]: value }));
   }
 
   function openDashboardTab(tab) {
     setActiveTab(tab);
     setIsNavOpen(false);
+  }
+
+  function openTrainerChat(trainerId = '') {
+    if (trainerId) {
+      setSelectedTrainerId(String(trainerId));
+    }
+    openDashboardTab('trainer-chat');
+  }
+
+  function selectTrainerTarget(trainerId) {
+    setSelectedTrainerId(String(trainerId));
+    setTrainerChatStatus('');
+    setIsTrainerChatError(false);
+  }
+
+  async function sendTrainerMessage(event) {
+    event.preventDefault();
+
+    const text = trainerChatInput.trim();
+    if (!text || isTrainerChatSending) return;
+
+    if (!selectedTrainerId) {
+      setIsTrainerChatError(true);
+      setTrainerChatStatus('Choose a trainer before sending a message.');
+      return;
+    }
+
+    setIsTrainerChatSending(true);
+    setTrainerChatInput('');
+    setTrainerChatStatus('');
+    setIsTrainerChatError(false);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/trainer-chat/messages/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient_id: selectedTrainerId,
+          body: text,
+        }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) throw new Error(data.detail || 'Unable to send message.');
+
+      setTrainerMessages((current) => [...current, data]);
+    } catch (error) {
+      setIsTrainerChatError(true);
+      setTrainerChatStatus(error instanceof Error ? error.message : 'Unable to send message.');
+      setTrainerChatInput(text);
+    } finally {
+      setIsTrainerChatSending(false);
+    }
+  }
+
+  function updateProfileField(event) {
+    const { name, value } = event.target;
+    setProfileForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function updateProfileFuelField(event) {
+    setManualFuelEdit(true);
+    updateProfileField(event);
+  }
+
+  function updatePrField(event) {
+    const { name, value } = event.target;
+    setPrForm((current) => {
+      if (name === 'category') {
+        const nextExercise = PR_EXERCISE_CATEGORIES[value]?.[0] || '';
+        const nextType = PR_EXERCISE_TYPE_OPTIONS[nextExercise]?.[0] || 'weight';
+        return {
+          ...current,
+          category: value,
+          exercise_name: nextExercise,
+          record_type: nextType,
+          unit: PR_RECORD_TYPE_UNITS[nextType] || current.unit,
+        };
+      }
+
+      if (name === 'exercise_name') {
+        const nextType = PR_EXERCISE_TYPE_OPTIONS[value]?.[0] || current.record_type;
+        return {
+          ...current,
+          exercise_name: value,
+          record_type: nextType,
+          unit: PR_RECORD_TYPE_UNITS[nextType] || current.unit,
+        };
+      }
+
+      if (name === 'record_type') {
+        return {
+          ...current,
+          record_type: value,
+          unit: PR_RECORD_TYPE_UNITS[value] || current.unit,
+        };
+      }
+
+      return { ...current, [name]: value };
+    });
+  }
+
+  function updateProfilePhoto(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (profilePhotoPreview?.startsWith('blob:')) URL.revokeObjectURL(profilePhotoPreview);
+    setProfilePhotoFile(file);
+    setProfilePhotoPreview(URL.createObjectURL(file));
+  }
+
+  function applySuggestedFuel() {
+    const suggested = suggestDailyFuel(profileForm);
+    if (!suggested) return;
+    setProfileForm((current) => ({ ...current, ...suggested }));
+    setManualFuelEdit(false);
+  }
+
+  async function saveProfile(event) {
+    event.preventDefault();
+    if (!user?.id) return;
+
+    setIsSavingProfile(true);
+    setIsProfileError(false);
+    setProfileMessage('');
+
+    try {
+      const payload = new FormData();
+      payload.append('username', profileForm.username.trim());
+      payload.append('fitness_goal', profileForm.fitness_goal.trim());
+      payload.append('training_style', profileForm.training_style.trim());
+      payload.append('weekly_target', profileForm.weekly_target || 0);
+      payload.append('weight_goal', profileForm.weight_goal);
+      payload.append('starting_weight', profileForm.starting_weight || '');
+      payload.append('current_weight', profileForm.current_weight || '');
+      payload.append('goal_weight', profileForm.goal_weight || '');
+      payload.append('weekly_goal', profileForm.weekly_goal || '');
+      payload.append('calorie_goal', profileForm.calorie_goal || '');
+      payload.append('protein_goal', profileForm.protein_goal || '');
+      payload.append('carbs_goal', profileForm.carbs_goal || '');
+      payload.append('fats_goal', profileForm.fats_goal || '');
+      if (profilePhotoFile) payload.append('profile_photo', profilePhotoFile);
+
+      const response = await fetch(`${API_BASE_URL}/users/${user.id}/`, {
+        method: 'PATCH',
+        credentials: 'include',
+        body: payload,
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) throw new Error(data.detail || 'Unable to save profile.');
+
+      const updated = { ...user, ...data, profile_photo_url: resolveMediaUrl(data.profile_photo_url) };
+      setUser(updated);
+      setProfilePhotoFile(null);
+      setProfilePhotoPreview(updated.profile_photo_url);
+      localStorage.setItem('onegymUser', JSON.stringify(updated));
+      window.dispatchEvent(new Event('onegym-auth-change'));
+      setProfileMessage('Profile saved.');
+    } catch (error) {
+      setIsProfileError(true);
+      setProfileMessage(error instanceof Error ? error.message : 'Unable to save profile.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
+  async function savePersonalRecord(event) {
+    event.preventDefault();
+    if (!user?.id) return;
+
+    setIsSavingPr(true);
+    setPrMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/personal-records/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          exercise_name: prForm.exercise_name.trim(),
+          category: prForm.category,
+          record_type: prForm.record_type,
+          value: Number(prForm.value),
+          unit: prForm.unit.trim(),
+          recorded_at: prForm.recorded_at ? `${prForm.recorded_at}T12:00:00` : undefined,
+          notes: prForm.notes.trim(),
+        }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) throw new Error(data.detail || 'Unable to save PR.');
+
+      setPersonalRecords((current) => [data, ...current]);
+      setPrForm(emptyPrForm);
+      setPrMessage('PR saved.');
+    } catch (error) {
+      setPrMessage(error instanceof Error ? error.message : 'Unable to save PR.');
+    } finally {
+      setIsSavingPr(false);
+    }
+  }
+
+  async function deletePersonalRecord(record) {
+    if (!user?.id) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/personal-records/${record.id}/?user_id=${user.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) throw new Error(data.detail || 'Unable to delete PR.');
+
+      setPersonalRecords((current) => current.filter((item) => item.id !== record.id));
+      setPrMessage('PR deleted.');
+    } catch (error) {
+      setPrMessage(error instanceof Error ? error.message : 'Unable to delete PR.');
+    }
   }
 
   function askToBook(item) {
@@ -545,6 +1270,125 @@ export function MemberDashboardPage() {
       setIsMealError(true);
     } finally {
       setIsSavingMeal(false);
+    }
+  }
+
+  function startMealEdit(meal) {
+    setEditingMeal({
+      id: meal.id,
+      description: meal.description || '',
+      mealType: normalizeMealType(meal.meal_type),
+      calories: String(Math.round(toNumber(meal.calories || meal.kcal))),
+      protein: String(Math.round(toNumber(meal.protein_g || meal.protein))),
+      carbs: String(Math.round(toNumber(meal.carbs_g || meal.carbs))),
+      fats: String(Math.round(toNumber(meal.fats_g || meal.fats))),
+    });
+  }
+
+  function updateMealEditField(event) {
+    const { name, value } = event.target;
+    setEditingMeal((current) => ({ ...current, [name]: value }));
+  }
+
+  async function saveMealEdit(event) {
+    event.preventDefault();
+    if (!editingMeal || !user?.id) return;
+
+    setIsSavingMealEdit(true);
+    try {
+      const endpoint = `${API_BASE_URL}/meals/update/`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          meal_id: editingMeal.id,
+          meal_type: editingMeal.mealType,
+          description: editingMeal.description.trim(),
+          calories: Number(editingMeal.calories),
+          protein_g: Number(editingMeal.protein),
+          carbs_g: Number(editingMeal.carbs),
+          fats_g: Number(editingMeal.fats),
+        }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) throw new Error(data.detail || 'Unable to update meal.');
+      await loadMeals();
+      setEditingMeal(null);
+      setMealNotice({ title: 'Meal updated', body: data.detail || 'Meal nutrition was updated.' });
+    } catch (error) {
+      setEditingMeal(null);
+      setMealNotice({ title: 'Could not update meal', body: error instanceof Error ? error.message : 'Unable to update meal.' });
+    } finally {
+      setIsSavingMealEdit(false);
+    }
+  }
+
+  async function confirmDeleteMeal() {
+    if (!pendingMealDelete || !user?.id) return;
+
+    setIsDeletingMeal(true);
+    try {
+      const endpoint = `${API_BASE_URL}/meals/delete/`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, meal_id: pendingMealDelete.id }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) throw new Error(data.detail || 'Unable to delete meal.');
+      await loadMeals();
+      setPendingMealDelete(null);
+      setMealNotice({ title: 'Meal deleted', body: data.detail || 'Meal removed.' });
+    } catch (error) {
+      setPendingMealDelete(null);
+      setMealNotice({ title: 'Could not delete meal', body: error instanceof Error ? error.message : 'Unable to delete meal.' });
+    } finally {
+      setIsDeletingMeal(false);
+    }
+  }
+
+  async function sendAiMessage(event) {
+    event.preventDefault();
+    const text = aiInput.trim();
+    if (!text || isAiSending) return;
+
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      body: text,
+      time: formatMealTime(new Date()),
+    };
+    setAiMessages((current) => [...current, userMessage]);
+    setAiInput('');
+    setIsAiSending(true);
+
+    try {
+      if (!user?.id) throw new Error('Please sign in before using the AI Assistant.');
+      const response = await fetch(`${API_BASE_URL}/ai-assistant/chat/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, message: text }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) throw new Error(data.detail || 'AI Assistant is unavailable.');
+      setAiMessages((current) => [...current, {
+        id: data.id || crypto.randomUUID(),
+        role: 'assistant',
+        title: 'Assistant Recommendation',
+        body: data.reply,
+        cards: Array.isArray(data.cards) ? data.cards : [],
+        quote: data.note || '',
+      }]);
+    } catch (error) {
+      setAiMessages((current) => [...current, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        title: 'Assistant Unavailable',
+        body: error instanceof Error ? error.message : 'AI Assistant is unavailable.',
+      }]);
+    } finally {
+      setIsAiSending(false);
     }
   }
 
@@ -701,7 +1545,7 @@ export function MemberDashboardPage() {
   }
 
   return (
-    <div className={`member-dashboard-page ${isNavOpen ? 'nav-open' : ''}`}>
+    <div className={`member-dashboard-page tab-${activeTab} ${isNavOpen ? 'nav-open' : ''}`}>
       <aside className="sidebar">
         <a className="brand" href="/">
           <div className="brand-mark">OG</div>
@@ -730,14 +1574,6 @@ export function MemberDashboardPage() {
           ))}
         </nav>
 
-        <a className="profile-section" href="/profile">
-          {profilePhotoUrl ? <img alt="" className="av avatar-img" src={profilePhotoUrl} /> : <div className="av">{initials}</div>}
-          <div className="profile-info">
-            <strong>{displayName}</strong>
-            <small>Member</small>
-          </div>
-          <span className="material-symbols-outlined expand-icon">expand_more</span>
-        </a>
       </aside>
 
       <button aria-label="Close sidebar" className="backdrop" onClick={() => setIsNavOpen(false)} type="button" />
@@ -751,8 +1587,8 @@ export function MemberDashboardPage() {
                   <span className="material-symbols-outlined">menu</span>
                 </button>
                 <div>
-                  <h1>Dashboard</h1>
-                  <p>Welcome back, {displayName}. Here is your fitness overview.</p>
+                  <h1>{tabHeading.title}</h1>
+                  <p>Welcome back, {displayName}. {tabHeading.description}</p>
                 </div>
               </div>
             </div>
@@ -764,9 +1600,9 @@ export function MemberDashboardPage() {
               <button className="btn btn-secondary icon-button" type="button">
                 <span className="material-symbols-outlined">notifications</span>
               </button>
-              <a className="top-avatar-link" href="/profile">
+              <button className="top-avatar-link" onClick={() => openDashboardTab('profile')} type="button">
                 {profilePhotoUrl ? <img alt="" className="av top-avatar avatar-img" src={profilePhotoUrl} /> : <div className="av top-avatar">{initials}</div>}
-              </a>
+              </button>
             </div>
           </header>
 
@@ -862,9 +1698,9 @@ export function MemberDashboardPage() {
                               {classSlots(item) <= 0 ? 'Full' : 'Book'}
                             </button>
                           ) : null}
-                          <a className="btn btn-secondary small-action" href={item.trainer_id ? `/trainer-chat?trainerId=${item.trainer_id}` : '/trainer-chat'}>
+                          <button className="btn btn-secondary small-action" onClick={() => openTrainerChat(item.trainer_id)} type="button">
                             Chat
-                          </a>
+                          </button>
                         </div>
                       </div>
                     );
@@ -974,7 +1810,7 @@ export function MemberDashboardPage() {
                   )}
                 </div>
                 <div className="full-log-link">
-                  <a href="/meal-history">View full log</a>
+                  <button className="view-all as-button" onClick={() => setActiveTab('food')} type="button">View full log</button>
                 </div>
               </div>
 
@@ -1037,13 +1873,6 @@ export function MemberDashboardPage() {
             </>
           ) : activeTab === 'classes' ? (
             <section className="classes-tab fade">
-              <div className="section-header">
-                <div>
-                  <h2 className="section-title">Classes</h2>
-                  <p className="section-subtitle">Book, review, or cancel your upcoming sessions from the dashboard.</p>
-                </div>
-              </div>
-
               {classesMessage ? <p className="dashboard-message error">{classesMessage}</p> : null}
 
               <div className="dashboard-classes-grid">
@@ -1078,7 +1907,7 @@ export function MemberDashboardPage() {
                                 {classSlots(item) <= 0 ? 'Full' : 'Book'}
                               </button>
                             ) : null}
-                            <a className="btn btn-secondary small-action" href={item.trainer_id ? `/trainer-chat?trainerId=${item.trainer_id}` : '/trainer-chat'}>Chat</a>
+                            <button className="btn btn-secondary small-action" onClick={() => openTrainerChat(item.trainer_id)} type="button">Chat</button>
                           </div>
                         </div>
                       );
@@ -1119,13 +1948,9 @@ export function MemberDashboardPage() {
                 </div>
               </div>
             </section>
-          ) : (
+          ) : activeTab === 'training' ? (
             <section className="training-tab fade">
               <div className="section-header">
-                <div>
-                  <h2 className="section-title">Training</h2>
-                  <p className="section-subtitle">Log workouts and review your full training history.</p>
-                </div>
                 <div className="dashboard-tab-switch">
                   <button className={trainingView === 'log' ? 'active' : ''} onClick={() => setTrainingView('log')} type="button">Log Workout</button>
                   <button className={trainingView === 'history' ? 'active' : ''} onClick={() => setTrainingView('history')} type="button">Training History</button>
@@ -1230,15 +2055,517 @@ export function MemberDashboardPage() {
                   )}
                 </div>
               )}
+
+              {trainingView === 'log' ? (
+              <section className="card profile-pr-panel training-pr-panel">
+                <div className="profile-panel-title">
+                  <p className="hero-kicker">Personal Records</p>
+                  <h3>Lift receipts</h3>
+                </div>
+                <form className="profile-pr-form" onSubmit={savePersonalRecord}>
+                  <label className="dashboard-field">
+                    <span>Category</span>
+                    <select name="category" onChange={updatePrField} value={prForm.category}>
+                      {Object.keys(PR_EXERCISE_CATEGORIES).map((category) => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="dashboard-field">
+                    <span>Exercise</span>
+                    <select name="exercise_name" onChange={updatePrField} required value={prForm.exercise_name}>
+                      {(PR_EXERCISE_CATEGORIES[prForm.category] || []).map((exercise) => (
+                        <option key={exercise} value={exercise}>{exercise}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="dashboard-field">
+                    <span>Type</span>
+                    <select name="record_type" onChange={updatePrField} value={prForm.record_type}>
+                      {(PR_EXERCISE_TYPE_OPTIONS[prForm.exercise_name] || ['weight']).map((type) => (
+                        <option key={type} value={type}>{PR_RECORD_TYPE_LABELS[type]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="dashboard-field">
+                    <span>Value</span>
+                    <input min="0" name="value" onChange={updatePrField} required step="0.01" type="number" value={prForm.value} />
+                  </label>
+                  <label className="dashboard-field">
+                    <span>Unit</span>
+                    <input name="unit" onChange={updatePrField} required type="text" value={prForm.unit} />
+                  </label>
+                  <label className="dashboard-field">
+                    <span>Date</span>
+                    <input name="recorded_at" onChange={updatePrField} type="date" value={prForm.recorded_at} />
+                  </label>
+                  <label className="dashboard-field pr-notes">
+                    <span>Notes</span>
+                    <input name="notes" onChange={updatePrField} placeholder="Felt clean, no spotter" type="text" value={prForm.notes} />
+                  </label>
+                  <button className="btn btn-primary" disabled={isSavingPr} type="submit">{isSavingPr ? 'Saving...' : 'Save PR'}</button>
+                </form>
+                {prMessage ? <p className="dashboard-message success">{prMessage}</p> : null}
+                <div className="profile-pr-list">
+                  {personalRecords.length ? personalRecords.map((record) => (
+                    <article key={record.id}>
+                      <div>
+                        <span>{record.category || 'PR'}</span>
+                        <h3>{record.exercise_name}</h3>
+                        <p>{record.record_type} · {new Date(record.recorded_at).toLocaleDateString()}</p>
+                      </div>
+                      <strong>{Number(record.value).toLocaleString()} {record.unit}</strong>
+                      <button aria-label={`Delete ${record.exercise_name} PR`} onClick={() => deletePersonalRecord(record)} type="button">
+                        <span className="material-symbols-outlined">delete</span>
+                      </button>
+                    </article>
+                  )) : (
+                    <div className="empty-state">No PRs saved yet.</div>
+                  )}
+                </div>
+              </section>
+              ) : null}
+            </section>
+          ) : activeTab === 'food' ? (
+            <section className="food-tab fade">
+              <div className="section-header">
+                <div className="dashboard-tab-switch">
+                  {MEAL_FILTERS.map((type) => (
+                    <button className={mealFilter === type.value ? 'active' : ''} key={type.value} onClick={() => setMealFilter(type.value)} type="button">
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <section className="food-summary-grid">
+                <article className="card food-summary-card">
+                  <span>Calories</span>
+                  <strong>{Math.round(foodTotals.calories).toLocaleString()}</strong>
+                  <small>{filteredMeals.length} meals logged</small>
+                </article>
+                <article className="card food-summary-card">
+                  <span>Protein</span>
+                  <strong>{Math.round(foodTotals.protein)}g</strong>
+                  <small>{Math.round(foodTotals.carbs)}g carbs</small>
+                </article>
+                <article className="card food-summary-card">
+                  <span>Fats</span>
+                  <strong>{Math.round(foodTotals.fats)}g</strong>
+                  <small>Sorted by {mealSort.replace('-', ' ')}</small>
+                </article>
+                <label className="card food-sort-card">
+                  <span>Sort By</span>
+                  <select onChange={(event) => setMealSort(event.target.value)} value={mealSort}>
+                    <option value="newest">Newest Date</option>
+                    <option value="oldest">Oldest Date</option>
+                    <option value="highest-protein">Highest Protein</option>
+                    <option value="lowest-calories">Lowest Calories</option>
+                  </select>
+                  <span className="food-date-label">Filter Date</span>
+                  <input onChange={(event) => setMealDateFilter(event.target.value)} type="date" value={mealDateFilter} />
+                  {mealDateFilter ? <button onClick={() => setMealDateFilter('')} type="button">Clear date</button> : null}
+                </label>
+              </section>
+
+              <div className="card food-history-panel">
+                {mealMessage && meals.length === 0 ? <div className="empty-state">{mealMessage}</div> : null}
+                {!mealMessage && groupedMeals.length === 0 ? <div className="empty-state">No meals match this filter yet.</div> : null}
+                {groupedMeals.map((day) => (
+                  <section className="food-day" key={day.key}>
+                    <aside>
+                      <h3>{formatDayTitle(day.key)}</h3>
+                      <p>{formatDateLabel(new Date(`${day.key}T12:00:00`))}</p>
+                      <div>
+                        <strong>{Math.round(day.totals.calories).toLocaleString()} kcal</strong>
+                        <span>{Math.round(day.totals.protein)}g protein</span>
+                        <span>{Math.round(day.totals.carbs)}g carbs</span>
+                        <span>{Math.round(day.totals.fats)}g fats</span>
+                      </div>
+                    </aside>
+                    <div className="food-day-items">
+                      {day.meals.map((meal) => {
+                        const photoUrl = resolveMediaUrl(meal.photo_url || meal.meal_photo);
+                        return (
+                          <article className="food-entry" key={meal.id}>
+                            {photoUrl ? <img alt="" src={photoUrl} /> : <div className="food-placeholder"><span className="material-symbols-outlined">restaurant</span></div>}
+                            <div className="food-entry-main">
+                              <span>{formatMealTime(meal.meal_date || meal.created_at)} • {formatMealType(meal.meal_type)}</span>
+                              <h3>{meal.description || 'Meal'}</h3>
+                              <p>P {Math.round(toNumber(meal.protein_g || meal.protein))}g • C {Math.round(toNumber(meal.carbs_g || meal.carbs))}g • F {Math.round(toNumber(meal.fats_g || meal.fats))}g</p>
+                            </div>
+                            <strong>{Math.round(toNumber(meal.calories || meal.kcal)).toLocaleString()} kcal</strong>
+                            <div className="food-actions">
+                              <button onClick={() => startMealEdit(meal)} type="button" aria-label="Edit meal"><span className="material-symbols-outlined">edit</span></button>
+                              <button className="danger" onClick={() => setPendingMealDelete(meal)} type="button" aria-label="Delete meal"><span className="material-symbols-outlined">delete</span></button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </section>
+          ) : activeTab === 'ai' ? (
+            <section className="ai-tab fade">
+              <div className="ai-dashboard-grid">
+                <aside className="ai-dashboard-stats">
+                  <p className="hero-kicker">Vital Stats</p>
+                  <div className="daily-fuel-ring ai-ring" style={{ '--ring-percent': `${nutrition.fuelPercent}%` }}>
+                    <span>{nutrition.fuelPercent}%</span>
+                  </div>
+                  <div className="macro-bars ai-macros">
+                    <div className="macro-item">
+                      <div className="macro-label"><span>Protein</span><span>{Math.round(nutrition.protein)}g / {PROTEIN_GOAL}g</span></div>
+                      <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, PROTEIN_GOAL)}%` }} /></div>
+                    </div>
+                    <div className="macro-item">
+                      <div className="macro-label"><span>Carbs</span><span>{Math.round(nutrition.carbs)}g / {CARBS_GOAL}g</span></div>
+                      <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, CARBS_GOAL)}%` }} /></div>
+                    </div>
+                    <div className="macro-item">
+                      <div className="macro-label"><span>Fats</span><span>{Math.round(nutrition.fats)}g / {FATS_GOAL}g</span></div>
+                      <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, FATS_GOAL)}%` }} /></div>
+                    </div>
+                  </div>
+                </aside>
+
+                <div className="ai-chat-card">
+                  <div className="ai-chat-list">
+                    {visibleAiMessages.map((message) => (
+                      <article className={`ai-dashboard-message ${message.role}`} key={message.id}>
+                        {message.role === 'assistant' ? <span className="ai-label"><span className="material-symbols-outlined">smart_toy</span> OneGym AI Assistant</span> : null}
+                        <div className="ai-dashboard-bubble">
+                          {message.title ? <h3>{message.title}</h3> : null}
+                          <p>{message.body}</p>
+                          {message.cards?.length ? (
+                            <div className="ai-card-grid">
+                              {message.cards.map((card) => (
+                                <div className="ai-mini-card" key={card.title || card.label}>
+                                  <span>{card.label || card.title}</span>
+                                  <strong>{card.title || card.body}</strong>
+                                  {card.detail ? <p>{card.detail}</p> : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          {message.quote ? <em>{message.quote}</em> : null}
+                        </div>
+                        {message.role === 'user' ? <time>{message.time}</time> : null}
+                      </article>
+                    ))}
+                  </div>
+                  <form className="ai-dashboard-input" onSubmit={sendAiMessage}>
+                    <input disabled={isAiSending} onChange={(event) => setAiInput(event.target.value)} placeholder={isAiSending ? 'Thinking...' : 'Ask your wellness assistant...'} value={aiInput} />
+                    <button className="btn btn-primary" disabled={isAiSending} type="submit">
+                      <span className="material-symbols-outlined">arrow_upward</span>
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </section>
+          ) : activeTab === 'trainer-chat' ? (
+            <section className="trainer-chat-tab fade">
+              <div className="trainer-chat-dashboard">
+                <aside className="card trainer-target-panel">
+                  <div className="trainer-target-list">
+                    {chatTargets.length ? chatTargets.map((target) => (
+                      <button
+                        className={String(target.id) === String(selectedTrainerId) ? 'active' : ''}
+                        key={target.id}
+                        onClick={() => selectTrainerTarget(target.id)}
+                        type="button"
+                      >
+                        <span>{initialsFor(target)}</span>
+                        <div>
+                          <strong>{target.username || 'Trainer'}</strong>
+                          <small>Tap to open conversation</small>
+                        </div>
+                      </button>
+                    )) : (
+                      <div className="empty-state">No trainers available yet.</div>
+                    )}
+                  </div>
+                </aside>
+
+                <section className="card trainer-chat-card">
+                  <div className="trainer-chat-heading">
+                    <div>
+                      <p className="hero-kicker">Conversation</p>
+                      <h3>{selectedTrainer ? selectedTrainer.username : 'Choose a trainer'}</h3>
+                    </div>
+                    {selectedTrainer ? <span>{initialsFor(selectedTrainer)}</span> : null}
+                  </div>
+
+                  {trainerChatStatus ? <p className={`dashboard-message ${isTrainerChatError ? 'error' : 'success'}`}>{trainerChatStatus}</p> : null}
+
+                  <div className="trainer-message-list">
+                    {!selectedTrainer ? (
+                      <article className="trainer-message assistant">
+                        <div className="trainer-message-bubble">
+                          <h4>Select a trainer</h4>
+                          <p>Choose someone from the left panel to start a saved conversation.</p>
+                        </div>
+                      </article>
+                    ) : trainerMessages.length ? (
+                      trainerMessages.map((message) => {
+                        const isUserMessage = Number(message.sender_id) === Number(user?.id);
+                        return (
+                          <article className={`trainer-message ${isUserMessage ? 'user' : 'assistant'}`} key={message.id}>
+                            {!isUserMessage ? (
+                              <span className="trainer-message-label">
+                                <span className="material-symbols-outlined">fitness_center</span>
+                                {message.sender_name || selectedTrainer.username}
+                              </span>
+                            ) : null}
+                            <div className="trainer-message-bubble">
+                              <p>{message.body}</p>
+                            </div>
+                            {isUserMessage ? <time>{formatMessageTime(message.created_at)}</time> : null}
+                          </article>
+                        );
+                      })
+                    ) : (
+                      <article className="trainer-message assistant">
+                        <span className="trainer-message-label">
+                          <span className="material-symbols-outlined">fitness_center</span>
+                          {selectedTrainer.username}
+                        </span>
+                        <div className="trainer-message-bubble">
+                          <h4>Start the conversation</h4>
+                          <p>Send a question about your booked class, training form, or what to prepare before your next session.</p>
+                        </div>
+                      </article>
+                    )}
+                  </div>
+
+                  <form className="trainer-chat-input" onSubmit={sendTrainerMessage}>
+                    <input
+                      disabled={isTrainerChatSending || !selectedTrainer}
+                      onChange={(event) => setTrainerChatInput(event.target.value)}
+                      placeholder={selectedTrainer ? `Message ${selectedTrainer.username}...` : 'Choose a trainer first'}
+                      type="text"
+                      value={trainerChatInput}
+                    />
+                    <button className="btn btn-primary" disabled={isTrainerChatSending || !selectedTrainer} type="submit">
+                      <span className="material-symbols-outlined">arrow_upward</span>
+                    </button>
+                  </form>
+                </section>
+              </div>
+            </section>
+          ) : activeTab === 'leaderboards' ? (
+            <section className="leaderboards-tab fade">
+              <section className="card leaderboard-filter-panel">
+                <label className="dashboard-field">
+                  <span>Category</span>
+                  <select onChange={(event) => updateLeaderboardFilter('category', event.target.value)} value={leaderboardFilters.category}>
+                    <option value="all">All categories</option>
+                    {leaderboardOptions.categories.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                </label>
+                <label className="dashboard-field">
+                  <span>Exercise</span>
+                  <select onChange={(event) => updateLeaderboardFilter('exercise', event.target.value)} value={leaderboardFilters.exercise}>
+                    <option value="all">All exercises</option>
+                    {leaderboardOptions.exercises.map((exercise) => <option key={exercise} value={exercise}>{exercise}</option>)}
+                  </select>
+                </label>
+                <label className="dashboard-field">
+                  <span>Record Type</span>
+                  <select onChange={(event) => updateLeaderboardFilter('recordType', event.target.value)} value={leaderboardFilters.recordType}>
+                    <option value="all">All types</option>
+                    {leaderboardOptions.recordTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                </label>
+              </section>
+
+              <section className="card leaderboard-panel">
+                <div className="leaderboard-head">
+                  <span>Rank</span>
+                  <span>Exercise</span>
+                  <span>Type</span>
+                  <span>Value</span>
+                  <span>Date</span>
+                </div>
+                <div className="leaderboard-list">
+                  {leaderboardRows.length ? leaderboardRows.map((record, index) => (
+                    <article className="leaderboard-row" key={record.id || `${record.exercise_name}-${record.recorded_at}-${index}`}>
+                      <div className="leaderboard-rank">{index + 1}</div>
+                      <div>
+                        <strong>{record.exercise_name}</strong>
+                        <small>{record.category || 'Personal record'}</small>
+                      </div>
+                      <span>{record.record_type}</span>
+                      <strong>{Number(record.value).toLocaleString()} {record.unit}</strong>
+                      <time>{new Date(record.recorded_at).toLocaleDateString()}</time>
+                    </article>
+                  )) : (
+                    <div className="empty-state">No personal records match these filters.</div>
+                  )}
+                </div>
+              </section>
+            </section>
+          ) : (
+            <section className="profile-tab fade">
+              <section className="card dashboard-profile-hero">
+                <div className="dashboard-profile-photo">
+                  {profilePhotoPreview || profilePhotoUrl ? (
+                    <img alt={displayName} src={profilePhotoPreview || profilePhotoUrl} />
+                  ) : (
+                    <span>{initials}</span>
+                  )}
+                  <label>
+                    <input accept="image/*" onChange={updateProfilePhoto} type="file" />
+                    Change photo
+                  </label>
+                </div>
+                <div>
+                  <p className="hero-kicker">Your space</p>
+                  <h2>{displayName}</h2>
+                  <p>Keep your weekly rhythm visible and your training goal honest.</p>
+                </div>
+              </section>
+
+              <form className="dashboard-profile-grid" onSubmit={saveProfile}>
+                <section className="card dashboard-profile-panel">
+                  <div className="profile-panel-title">
+                    <p className="hero-kicker">Details</p>
+                    <h3>About you</h3>
+                  </div>
+                  <label className="dashboard-field">
+                    <span>Display Name</span>
+                    <input name="username" onChange={updateProfileField} required type="text" value={profileForm.username} />
+                  </label>
+                  <label className="dashboard-field">
+                    <span>Fitness Goal</span>
+                    <textarea
+                      name="fitness_goal"
+                      onChange={updateProfileField}
+                      placeholder="Build stronger legs, feel better running stairs, stay consistent for 12 weeks..."
+                      rows="5"
+                      value={profileForm.fitness_goal}
+                    />
+                  </label>
+                  <div className="profile-field-grid">
+                    <label className="dashboard-field wide">
+                      <span>Weight Goal</span>
+                      <select name="weight_goal" onChange={updateProfileField} value={profileForm.weight_goal}>
+                        <option value="">Pick one</option>
+                        <option value="Lose weight">Lose weight</option>
+                        <option value="Maintain weight">Maintain weight</option>
+                        <option value="Gain weight">Gain weight</option>
+                        <option value="Recomposition">Recomposition</option>
+                      </select>
+                    </label>
+                    <label className="dashboard-field">
+                      <span>Weekly Goal (kg)</span>
+                      <input name="weekly_goal" onChange={updateProfileField} step="0.1" type="number" value={profileForm.weekly_goal} />
+                    </label>
+                    <label className="dashboard-field">
+                      <span>Starting Weight (kg)</span>
+                      <input min="0" name="starting_weight" onChange={updateProfileField} step="0.1" type="number" value={profileForm.starting_weight} />
+                    </label>
+                    <label className="dashboard-field">
+                      <span>Current Weight (kg)</span>
+                      <input min="0" name="current_weight" onChange={updateProfileField} step="0.1" type="number" value={profileForm.current_weight} />
+                    </label>
+                    <label className="dashboard-field">
+                      <span>Goal Weight (kg)</span>
+                      <input min="0" name="goal_weight" onChange={updateProfileField} step="0.1" type="number" value={profileForm.goal_weight} />
+                    </label>
+                  </div>
+                </section>
+
+                <aside className="card dashboard-profile-panel">
+                  <div className="profile-panel-title">
+                    <p className="hero-kicker">Training Feel</p>
+                    <h3>What are we chasing?</h3>
+                  </div>
+                  <label className="dashboard-field">
+                    <span>Training Style</span>
+                    <select name="training_style" onChange={updateProfileField} value={profileForm.training_style}>
+                      <option value="">Pick a vibe</option>
+                      <option value="Strength">Strength</option>
+                      <option value="Hypertrophy">Hypertrophy</option>
+                      <option value="Fat loss">Fat loss</option>
+                      <option value="Mobility">Mobility</option>
+                      <option value="Athletic conditioning">Athletic conditioning</option>
+                    </select>
+                  </label>
+                  <label className="dashboard-field">
+                    <span>Weekly Sessions</span>
+                    <input max="21" min="0" name="weekly_target" onChange={updateProfileField} type="number" value={profileForm.weekly_target} />
+                  </label>
+                  <div className="profile-panel-title compact">
+                    <p className="hero-kicker">Nutrition Targets</p>
+                    <h3>Daily fuel</h3>
+                  </div>
+                  <p className="profile-helper">Suggested from your current weight, training style, weekly sessions, and goal. Edit anytime.</p>
+                  <div className="profile-macro-grid">
+                    <label className="dashboard-field">
+                      <span>Calories</span>
+                      <input min="0" name="calorie_goal" onChange={updateProfileFuelField} type="number" value={profileForm.calorie_goal} />
+                    </label>
+                    <label className="dashboard-field">
+                      <span>Protein (g)</span>
+                      <input min="0" name="protein_goal" onChange={updateProfileFuelField} type="number" value={profileForm.protein_goal} />
+                    </label>
+                    <label className="dashboard-field">
+                      <span>Carbs (g)</span>
+                      <input min="0" name="carbs_goal" onChange={updateProfileFuelField} type="number" value={profileForm.carbs_goal} />
+                    </label>
+                    <label className="dashboard-field">
+                      <span>Fat (g)</span>
+                      <input min="0" name="fats_goal" onChange={updateProfileFuelField} type="number" value={profileForm.fats_goal} />
+                    </label>
+                  </div>
+                  <button className="btn btn-secondary btn-full" onClick={applySuggestedFuel} type="button">Recalculate Fuel</button>
+                  <div className="profile-goal-summary">
+                    <span className="material-symbols-outlined">flag</span>
+                    <strong>{profileForm.weight_goal || profileForm.training_style || 'Your next chapter'}</strong>
+                    <p>
+                      {profileForm.current_weight && profileForm.goal_weight
+                        ? `${profileForm.current_weight}kg now, aiming for ${profileForm.goal_weight}kg.`
+                        : profileForm.fitness_goal || 'Add a goal so the dashboard knows what you are working toward.'}
+                    </p>
+                  </div>
+                  <button className="btn btn-primary btn-full" disabled={isSavingProfile} type="submit">
+                    {isSavingProfile ? 'Saving...' : 'Save Profile'}
+                  </button>
+                  {profileMessage ? <p className={`dashboard-message ${isProfileError ? 'error' : 'success'}`}>{profileMessage}</p> : null}
+                </aside>
+              </form>
+
+
             </section>
           )}
 
-          {(classAction || classNotice || pendingWorkoutDelete || trainingNotice) ? (
+          {(classAction || classNotice || pendingWorkoutDelete || trainingNotice || editingMeal || pendingMealDelete || mealNotice || aiNotice) ? (
             <div className="dashboard-modal-backdrop" role="presentation">
               <div className="dashboard-modal" role="dialog" aria-modal="true">
-                <p className="hero-kicker">{classAction || pendingWorkoutDelete ? 'Confirmation' : 'Status'}</p>
-                <h2>{classAction?.title || pendingWorkoutDelete?.title || classNotice?.title || trainingNotice?.title}</h2>
-                <p>{classAction?.body || pendingWorkoutDelete?.body || classNotice?.body || trainingNotice?.body}</p>
+                <p className="hero-kicker">{classAction || pendingWorkoutDelete || pendingMealDelete || editingMeal ? 'Confirmation' : 'Status'}</p>
+                <h2>{editingMeal ? 'Edit nutrition' : classAction?.title || pendingWorkoutDelete?.title || (pendingMealDelete ? 'Delete meal' : '') || classNotice?.title || trainingNotice?.title || mealNotice?.title || aiNotice?.title}</h2>
+                {editingMeal ? (
+                  <form className="dashboard-edit-form" onSubmit={saveMealEdit}>
+                    <p>Adjust the nutrition values for <strong>{editingMeal.description}</strong>.</p>
+                    <div className="dashboard-edit-grid">
+                      <label>Meal Type<select name="mealType" onChange={updateMealEditField} value={editingMeal.mealType}>{MEAL_FILTERS.filter((type) => type.value !== 'all').map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
+                      <label>Description<input name="description" onChange={updateMealEditField} required value={editingMeal.description} /></label>
+                      <label>Calories<input min="0" name="calories" onChange={updateMealEditField} required type="number" value={editingMeal.calories} /></label>
+                      <label>Protein<input min="0" name="protein" onChange={updateMealEditField} required type="number" value={editingMeal.protein} /></label>
+                      <label>Carbs<input min="0" name="carbs" onChange={updateMealEditField} required type="number" value={editingMeal.carbs} /></label>
+                      <label>Fats<input min="0" name="fats" onChange={updateMealEditField} required type="number" value={editingMeal.fats} /></label>
+                    </div>
+                    <div className="dashboard-modal-actions">
+                      <button className="btn btn-secondary" disabled={isSavingMealEdit} onClick={() => setEditingMeal(null)} type="button">Back</button>
+                      <button className="btn btn-primary" disabled={isSavingMealEdit} type="submit">{isSavingMealEdit ? 'Saving' : 'Save Meal'}</button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                <p>{classAction?.body || pendingWorkoutDelete?.body || (pendingMealDelete ? `Delete "${pendingMealDelete.description}" from your food log?` : '') || classNotice?.body || trainingNotice?.body || mealNotice?.body || aiNotice?.body}</p>
                 <div className="dashboard-modal-actions">
                   {classAction ? (
                     <>
@@ -1255,11 +2582,18 @@ export function MemberDashboardPage() {
                           {isDeletingWorkout ? 'Deleting' : 'Delete Workout'}
                         </button>
                       </>
+                    ) : pendingMealDelete ? (
+                      <>
+                        <button className="btn btn-secondary" disabled={isDeletingMeal} onClick={() => setPendingMealDelete(null)} type="button">Back</button>
+                        <button className="btn cancel-action" disabled={isDeletingMeal} onClick={confirmDeleteMeal} type="button">{isDeletingMeal ? 'Deleting' : 'Delete Meal'}</button>
+                      </>
                     ) : (
-                      <button className="btn btn-primary" onClick={() => { setClassNotice(null); setTrainingNotice(null); }} type="button">Done</button>
+                      <button className="btn btn-primary" onClick={() => { setClassNotice(null); setTrainingNotice(null); setMealNotice(null); setAiNotice(null); }} type="button">Done</button>
                     )
                   )}
                 </div>
+                  </>
+                )}
               </div>
             </div>
           ) : null}

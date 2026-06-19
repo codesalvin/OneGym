@@ -60,6 +60,7 @@
   transform: translateX(-50%); /* Centers perfectly under the trigger */
   width: min(850px, calc(100vw - 64px));
   background: rgba(255, 255, 255, 0.98);
+  color: #111111;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
@@ -80,7 +81,7 @@
 
 /* Inside Columns Styling */
 .mega-col h4 {
-  color: var(--dark);
+  color: #111111;
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
@@ -90,7 +91,7 @@
 
 .mega-col > p {
   font-size: 12px;
-  color: var(--mid);
+  color: #555555;
   margin-bottom: 12px;
   line-height: 1.4;
 }
@@ -107,13 +108,13 @@
 }
 
 .mega-item span {
-  color: var(--dark);
+  color: #111111;
   font-size: 13px;
   font-weight: 600;
 }
 
 .mega-item small {
-  color: var(--mid);
+  color: #555555;
   font-size: 11.5px;
   line-height: 1.35;
 }
@@ -185,6 +186,7 @@
   right: 0;
   min-width: 240px;
   background: rgba(255, 255, 255, 0.98);
+  color: #111111;
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.08);
   display: none;
@@ -226,13 +228,13 @@
 }
 
 .profile-summary strong {
-  color: var(--dark);
+  color: #111111;
   font-size: 13px;
   line-height: 1.3;
 }
 
 .profile-summary small {
-  color: var(--mid);
+  color: #555555;
   font-size: 11px;
   line-height: 1.4;
   max-width: 160px;
@@ -247,7 +249,7 @@
   display: block;
   background: transparent;
   border: 0;
-  color: var(--dark);
+  color: #111111;
   cursor: pointer;
   font-family: var(--sans);
   font-size: 12px;
