@@ -5,6 +5,7 @@ import './AiAssistant.css';
 import './TrainerChat.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const MEMBER_SIDE_ROLES = new Set(['member', 'pro', 'studio']);
 
 async function readApiResponse(response) {
   const text = await response.text();
@@ -73,7 +74,9 @@ export function TrainerChatPage() {
         throw new Error(data.detail || `Unable to load ${targetLabel}s.`);
       }
 
-      const targetUsers = Array.isArray(data) ? data.filter((item) => item.role === targetRole) : [];
+      const targetUsers = Array.isArray(data)
+        ? data.filter((item) => (isTrainerUser ? MEMBER_SIDE_ROLES.has(item.role) : item.role === targetRole))
+        : [];
       setChatTargets(targetUsers);
 
       if (!selectedTargetId && targetUsers.length) {

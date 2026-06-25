@@ -19,6 +19,10 @@ class UserSerializer(serializers.Serializer):
     protein_goal = serializers.IntegerField(allow_null=True, required=False)
     carbs_goal = serializers.IntegerField(allow_null=True, required=False)
     fats_goal = serializers.IntegerField(allow_null=True, required=False)
+    plan_code = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    plan_name = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    subscription_status = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    subscription_current_period_end = serializers.DateTimeField(allow_null=True, required=False)
     created_at = serializers.DateTimeField()
 
 
@@ -154,6 +158,11 @@ class PersonalRecordSerializer(serializers.Serializer):
     unit = serializers.CharField()
     recorded_at = serializers.DateTimeField()
     notes = serializers.CharField(allow_blank=True, allow_null=True)
+    status = serializers.CharField()
+    is_verified = serializers.BooleanField()
+    verification_reason = serializers.CharField(allow_blank=True, allow_null=True)
+    proof_url = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    proof_file_name = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     created_at = serializers.DateTimeField()
 
 
@@ -269,7 +278,7 @@ class SignUpSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     email = serializers.EmailField(max_length=254)
     password = serializers.CharField(max_length=255, write_only=True)
-    role = serializers.CharField(max_length=20, default='member')
+    role = serializers.ChoiceField(choices=['member'], default='member', required=False)
 
 
 class SignInSerializer(serializers.Serializer):

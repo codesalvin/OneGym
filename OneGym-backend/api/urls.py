@@ -20,6 +20,7 @@ from .views import (
     sign_out,
     sign_up,
     social_auth,
+    stripe_webhook,
     trainer_applications,
     trainer_chat_conversations,
     trainer_chat_message,
@@ -37,6 +38,7 @@ from .views import (
 
 urlpatterns = [
     path('health/', health_check, name='health-check'),
+    path('stripe/webhook/', stripe_webhook, name='stripe-webhook'),
     path('ai-assistant/chat/', ai_assistant_chat, name='ai-assistant-chat'),
     path('users/', user_list, name='user-list'),
     path('users/<int:user_id>/', user_detail, name='user-detail'),

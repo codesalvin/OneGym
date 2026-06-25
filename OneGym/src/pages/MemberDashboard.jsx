@@ -187,6 +187,15 @@ function getInitialTab() {
   return ['overview', 'classes', 'training', 'food', 'ai', 'trainer-chat', 'leaderboards', 'profile'].includes(tab) ? tab : 'overview';
 }
 
+function isPrVerified(record) {
+  return record?.status !== 'pending' && (
+    record?.is_verified === true ||
+    record?.is_verified === 1 ||
+    record?.is_verified === '1' ||
+    record?.is_verified === 'true'
+  );
+}
+
 async function parseResponse(response) {
   const text = await response.text();
   if (!text) return {};
@@ -292,6 +301,21 @@ function addDays(value, days) {
 
 function formatDateLabel(value = new Date()) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(value).toUpperCase();
+}
+
+function shortDayLabel(value) {
+  return new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(value).toUpperCase();
+}
+
+function recentDayKeys(days = 7) {
+  return Array.from({ length: days }, (_, index) => {
+    const day = new Date();
+    day.setDate(day.getDate() - (days - 1 - index));
+    return {
+      key: dateKey(day),
+      label: shortDayLabel(day),
+    };
+  });
 }
 
 function formatClassTime(value) {
@@ -551,8 +575,10 @@ export function MemberDashboardPage() {
     recordType: 'all',
   });
   const [prForm, setPrForm] = useState(emptyPrForm);
+  const [prProofFile, setPrProofFile] = useState(null);
   const [isSavingPr, setIsSavingPr] = useState(false);
   const [prMessage, setPrMessage] = useState('');
+  const [isPrError, setIsPrError] = useState(false);
   const displayName = displayNameFor(user);
   const initials = initialsFor(user);
   const profilePhotoUrl = resolveMediaUrl(user?.profile_photo_url || user?.profile_picture || user?.avatar_url);
@@ -561,6 +587,7 @@ export function MemberDashboardPage() {
     [chatTargets, selectedTrainerId],
   );
   const tabHeading = tabHeadings[activeTab] || tabHeadings.overview;
+  const needsPrVideoProof = prForm.record_type === 'weight' && Number(prForm.value) > 250;
   const todayDate = toDateInputValue();
   const registrationDate = toDateInputValue(user?.created_at) || todayDate;
   const [trainingView, setTrainingView] = useState('log');
@@ -742,7 +769,10 @@ export function MemberDashboardPage() {
   }, [user?.id]);
 
   useEffect(() => {
-    loadPersonalRecords().catch((error) => setPrMessage(error instanceof Error ? error.message : 'Unable to load personal records.'));
+    loadPersonalRecords().catch((error) => {
+      setIsPrError(true);
+      setPrMessage(error instanceof Error ? error.message : 'Unable to load personal records.');
+    });
   }, [loadPersonalRecords]);
 
   useEffect(() => {
@@ -885,6 +915,7 @@ export function MemberDashboardPage() {
   }, [personalRecords]);
   const leaderboardRows = useMemo(() => {
     return personalRecords
+      .filter(isPrVerified)
       .filter((record) => {
         const categoryMatch = leaderboardFilters.category === 'all' || record.category === leaderboardFilters.category;
         const exerciseMatch = leaderboardFilters.exercise === 'all' || record.exercise_name === leaderboardFilters.exercise;
@@ -897,6 +928,43 @@ export function MemberDashboardPage() {
         return new Date(second.recorded_at) - new Date(first.recorded_at);
       });
   }, [leaderboardFilters, personalRecords]);
+  const progressAnalytics = useMemo(() => {
+    const days = recentDayKeys(7);
+    const workoutCounts = days.map((day) => ({
+      ...day,
+      value: workouts.filter((workout) => dateKey(workoutDate(workout)) === day.key).length,
+    }));
+    const calorieDays = days.map((day) => ({
+      ...day,
+      value: meals
+        .filter((meal) => dateKey(mealDate(meal)) === day.key)
+        .reduce((sum, meal) => sum + toNumber(meal.calories || meal.kcal), 0),
+    }));
+    const startWeight = toNumber(profileForm.starting_weight || user?.starting_weight);
+    const currentWeight = toNumber(profileForm.current_weight || user?.current_weight);
+    const goalWeight = toNumber(profileForm.goal_weight || user?.goal_weight);
+    const verifiedRecords = personalRecords.filter(isPrVerified);
+    const pendingRecords = personalRecords.filter((record) => record.status === 'pending' || !isPrVerified(record));
+    const latestRecord = [...personalRecords].sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at))[0];
+
+    return {
+      workoutCounts,
+      calorieDays,
+      maxWorkoutCount: Math.max(1, ...workoutCounts.map((day) => day.value)),
+      maxCalories: Math.max(1, CALORIE_GOAL, ...calorieDays.map((day) => day.value)),
+      weight: {
+        start: startWeight,
+        current: currentWeight,
+        goal: goalWeight,
+        max: Math.max(1, startWeight, currentWeight, goalWeight),
+      },
+      records: {
+        verified: verifiedRecords.length,
+        pending: pendingRecords.length,
+        latest: latestRecord,
+      },
+    };
+  }, [meals, personalRecords, profileForm.current_weight, profileForm.goal_weight, profileForm.starting_weight, user?.current_weight, user?.goal_weight, user?.starting_weight, workouts]);
 
   function updateMealField(field, value) {
     setMealForm((current) => ({ ...current, [field]: value }));
@@ -980,6 +1048,7 @@ export function MemberDashboardPage() {
       if (name === 'category') {
         const nextExercise = PR_EXERCISE_CATEGORIES[value]?.[0] || '';
         const nextType = PR_EXERCISE_TYPE_OPTIONS[nextExercise]?.[0] || 'weight';
+        if (nextType !== 'weight') setPrProofFile(null);
         return {
           ...current,
           category: value,
@@ -991,6 +1060,7 @@ export function MemberDashboardPage() {
 
       if (name === 'exercise_name') {
         const nextType = PR_EXERCISE_TYPE_OPTIONS[value]?.[0] || current.record_type;
+        if (nextType !== 'weight') setPrProofFile(null);
         return {
           ...current,
           exercise_name: value,
@@ -1000,6 +1070,7 @@ export function MemberDashboardPage() {
       }
 
       if (name === 'record_type') {
+        if (value !== 'weight') setPrProofFile(null);
         return {
           ...current,
           record_type: value,
@@ -1080,30 +1151,39 @@ export function MemberDashboardPage() {
 
     setIsSavingPr(true);
     setPrMessage('');
+    setIsPrError(false);
 
     try {
+      if (needsPrVideoProof && !prProofFile) {
+        throw new Error('Video proof is required for weight PRs of 251kg and above.');
+      }
+
+      const payload = new FormData();
+      payload.append('user_id', user.id);
+      payload.append('exercise_name', prForm.exercise_name.trim());
+      payload.append('category', prForm.category);
+      payload.append('record_type', prForm.record_type);
+      payload.append('value', Number(prForm.value));
+      payload.append('unit', prForm.unit.trim());
+      if (prForm.recorded_at) payload.append('recorded_at', `${prForm.recorded_at}T12:00:00`);
+      payload.append('notes', prForm.notes.trim());
+      if (prProofFile) payload.append('proof_video', prProofFile);
+
       const response = await fetch(`${API_BASE_URL}/personal-records/`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.id,
-          exercise_name: prForm.exercise_name.trim(),
-          category: prForm.category,
-          record_type: prForm.record_type,
-          value: Number(prForm.value),
-          unit: prForm.unit.trim(),
-          recorded_at: prForm.recorded_at ? `${prForm.recorded_at}T12:00:00` : undefined,
-          notes: prForm.notes.trim(),
-        }),
+        body: payload,
       });
       const data = await parseResponse(response);
       if (!response.ok) throw new Error(data.detail || 'Unable to save PR.');
 
       setPersonalRecords((current) => [data, ...current]);
       setPrForm(emptyPrForm);
-      setPrMessage('PR saved.');
+      setPrProofFile(null);
+      setIsPrError(false);
+      setPrMessage(data.status === 'pending' ? data.verification_reason || 'PR saved for review.' : 'PR saved.');
     } catch (error) {
+      setIsPrError(true);
       setPrMessage(error instanceof Error ? error.message : 'Unable to save PR.');
     } finally {
       setIsSavingPr(false);
@@ -1122,8 +1202,10 @@ export function MemberDashboardPage() {
       if (!response.ok) throw new Error(data.detail || 'Unable to delete PR.');
 
       setPersonalRecords((current) => current.filter((item) => item.id !== record.id));
+      setIsPrError(false);
       setPrMessage('PR deleted.');
     } catch (error) {
+      setIsPrError(true);
       setPrMessage(error instanceof Error ? error.message : 'Unable to delete PR.');
     }
   }
@@ -1544,6 +1626,133 @@ export function MemberDashboardPage() {
     }
   }
 
+  function renderTodayNutrition() {
+    return (
+      <section className="fade delay-3 nutrition-shell">
+        <div className="section-header">
+          <h2 className="section-title">Today's Nutrition</h2>
+          <span className="date-label">{formatDateLabel()}</span>
+        </div>
+        <div className="card nutrition-grid">
+          <div className="nutrition-main">
+            <div className="nutrition-summary">
+              <div>
+                <p className="summary-label fire-label">
+                  <span className="material-symbols-outlined">local_fire_department</span>
+                  Daily Goal
+                </p>
+                <p className="summary-value">{CALORIE_GOAL.toLocaleString()} <small>kcal</small></p>
+              </div>
+              <div>
+                <p className="summary-label">Consumed</p>
+                <p className="summary-value">{Math.round(nutrition.calories).toLocaleString()} <small>kcal</small></p>
+              </div>
+              <div className="remaining-summary">
+                <div>
+                  <p className="summary-label">Remaining</p>
+                  <p className="summary-value">{Math.round(nutrition.remaining).toLocaleString()} <small>kcal</small></p>
+                </div>
+              </div>
+            </div>
+            <div className="macro-bars">
+              <div className="macro-item">
+                <div className="macro-label"><span>PROTEIN</span> <span>{Math.round(nutrition.protein)}g / {PROTEIN_GOAL}g</span></div>
+                <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, PROTEIN_GOAL)}%` }} /></div>
+              </div>
+              <div className="macro-item">
+                <div className="macro-label"><span>CARBS</span> <span>{Math.round(nutrition.carbs)}g / {CARBS_GOAL}g</span></div>
+                <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, CARBS_GOAL)}%` }} /></div>
+              </div>
+              <div className="macro-item">
+                <div className="macro-label"><span>FATS</span> <span>{Math.round(nutrition.fats)}g / {FATS_GOAL}g</span></div>
+                <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, FATS_GOAL)}%` }} /></div>
+              </div>
+            </div>
+            <div className="meal-log">
+              {nutrition.todaysMeals.length ? (
+                nutrition.todaysMeals.slice(0, 3).map((meal) => (
+                  <div className="meal-item" key={meal.id || `${meal.description}-${meal.created_at}`}>
+                    <div className="meal-info">
+                      {resolveMediaUrl(meal.photo_url || meal.meal_photo) ? (
+                        <img alt="" className="meal-thumb" src={resolveMediaUrl(meal.photo_url || meal.meal_photo)} />
+                      ) : (
+                        <span className="material-symbols-outlined meal-icon">restaurant</span>
+                      )}
+                      <div className="meal-name">
+                        <strong>{formatMealType(meal.meal_type)}</strong>
+                        <span>{meal.description || 'Meal'}</span>
+                        <div className="meal-macros">
+                          P {Math.round(toNumber(meal.protein_g || meal.protein))}g â€¢ C {Math.round(toNumber(meal.carbs_g || meal.carbs))}g â€¢ F {Math.round(toNumber(meal.fats_g || meal.fats))}g
+                        </div>
+                      </div>
+                    </div>
+                    <div className="meal-kcal">{Math.round(toNumber(meal.calories || meal.kcal)).toLocaleString()} kcal</div>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-state meal-empty">No meals logged today.</div>
+              )}
+            </div>
+          </div>
+          <div className="quick-log" id="dashboard-quick-log">
+            <h3>Quick Log</h3>
+            <div className="form-group">
+              <label>Meal Type</label>
+              <select className="form-control" value={mealForm.mealType} onChange={(event) => updateMealField('mealType', event.target.value)}>
+                <option value="breakfast">Breakfast</option>
+                <option value="lunch">Lunch</option>
+                <option value="dinner">Dinner</option>
+                <option value="snacks">Snacks</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Meal Description</label>
+              <input className="form-control" onChange={(event) => updateMealField('description', event.target.value)} placeholder="e.g. Chicken Salad" type="text" value={mealForm.description} />
+            </div>
+            <div className="form-row-3">
+              <div className="form-group">
+                <label>kcal</label>
+                <input className="form-control" onChange={(event) => updateMealField('calories', event.target.value)} placeholder="350" type="number" value={mealForm.calories} />
+              </div>
+              <div className="form-group">
+                <label>Prot (g)</label>
+                <input className="form-control" onChange={(event) => updateMealField('protein', event.target.value)} placeholder="25" type="number" value={mealForm.protein} />
+              </div>
+              <div className="form-group">
+                <label>Carb (g)</label>
+                <input className="form-control" onChange={(event) => updateMealField('carbs', event.target.value)} placeholder="40" type="number" value={mealForm.carbs} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Fat (g)</label>
+              <input className="form-control" onChange={(event) => updateMealField('fats', event.target.value)} placeholder="10" type="number" value={mealForm.fats} />
+            </div>
+            <label className="upload-zone">
+              <input accept="image/*" className="hidden-input" onChange={handleMealPhotoChange} type="file" />
+              {mealPhotoPreview ? (
+                <img alt="" className="meal-photo-preview" src={mealPhotoPreview} />
+              ) : (
+                <>
+                  <span className="material-symbols-outlined">add_a_photo</span>
+                  <span>Take or upload food photo</span>
+                </>
+              )}
+            </label>
+            <button className="btn btn-secondary btn-full" disabled={isAnalyzingMeal} onClick={analyzeMealPhoto} type="button">
+              <span className="material-symbols-outlined enhance-icon">camera_enhance</span>
+              {isAnalyzingMeal ? 'Estimating...' : 'Estimate from Photo'}
+            </button>
+            <button className="btn btn-primary btn-full" disabled={isSavingMeal} onClick={saveMealLog} type="button">
+              <span className="material-symbols-outlined enhance-icon">add_circle</span>
+              {isSavingMeal ? 'Adding...' : 'Add to Log'}
+            </button>
+            {mealMessage ? <p className={`meal-log-message ${isMealError ? 'error' : 'success'}`}>{mealMessage}</p> : null}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div className={`member-dashboard-page tab-${activeTab} ${isNavOpen ? 'nav-open' : ''}`}>
       <aside className="sidebar">
@@ -1616,7 +1825,7 @@ export function MemberDashboardPage() {
                 <p>Track your classes, workouts, meals, and weekly progress from one focused dashboard.</p>
                 <div className="hero-actions">
                   <button className="btn btn-primary" onClick={() => openDashboardTab('classes')} type="button">View Schedule</button>
-                  <button className="btn btn-secondary" onClick={() => document.getElementById('dashboard-quick-log')?.scrollIntoView({ behavior: 'smooth' })} type="button">
+                  <button className="btn btn-secondary" onClick={() => openDashboardTab('food')} type="button">
                     Log Meal
                   </button>
                 </div>
@@ -1741,6 +1950,99 @@ export function MemberDashboardPage() {
               </div>
             </section>
           </div>
+
+          <section className="fade delay-3 progress-analytics">
+            <div className="section-header">
+              <div>
+                <h2 className="section-title">Progress Analytics</h2>
+                <p className="section-subtitle">Weight, training rhythm, calories, and records in one glance.</p>
+              </div>
+              <span className="date-label">LAST 7 DAYS</span>
+            </div>
+            <div className="analytics-grid">
+              <article className="card analytics-card weight-analytics">
+                <div className="analytics-card-head">
+                  <div>
+                    <span className="label">Weight Changes</span>
+                    <strong>{progressAnalytics.weight.current ? `${progressAnalytics.weight.current.toFixed(1)} kg` : '--'}</strong>
+                  </div>
+                  <span className="material-symbols-outlined stat-icon">monitor_weight</span>
+                </div>
+                <div className="weight-track">
+                  {[
+                    ['Start', progressAnalytics.weight.start],
+                    ['Current', progressAnalytics.weight.current],
+                    ['Goal', progressAnalytics.weight.goal],
+                  ].map(([label, value]) => (
+                    <div className="weight-row" key={label}>
+                      <span>{label}</span>
+                      <div className="analytics-bar-bg">
+                        <div className="analytics-bar-fill weight-fill" style={{ width: `${pct(value, progressAnalytics.weight.max)}%` }} />
+                      </div>
+                      <strong>{value ? `${Number(value).toFixed(1)}` : '--'}</strong>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="card analytics-card">
+                <div className="analytics-card-head">
+                  <div>
+                    <span className="label">Workout Frequency</span>
+                    <strong>{progressAnalytics.workoutCounts.reduce((sum, day) => sum + day.value, 0)} sessions</strong>
+                  </div>
+                  <span className="material-symbols-outlined stat-icon teal-icon">calendar_month</span>
+                </div>
+                <div className="mini-bar-chart">
+                  {progressAnalytics.workoutCounts.map((day) => (
+                    <div className="mini-bar" key={day.key}>
+                      <div style={{ height: `${Math.max(8, pct(day.value, progressAnalytics.maxWorkoutCount))}%` }} />
+                      <span>{day.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="card analytics-card">
+                <div className="analytics-card-head">
+                  <div>
+                    <span className="label">Calorie Trends</span>
+                    <strong>{Math.round(nutrition.calories).toLocaleString()} kcal today</strong>
+                  </div>
+                  <span className="material-symbols-outlined stat-icon yellow-icon">show_chart</span>
+                </div>
+                <div className="calorie-sparkline">
+                  {progressAnalytics.calorieDays.map((day) => (
+                    <div className="calorie-point" key={day.key}>
+                      <span>{Math.round(day.value).toLocaleString()}</span>
+                      <div style={{ height: `${Math.max(6, pct(day.value, progressAnalytics.maxCalories))}%` }} />
+                      <small>{day.label}</small>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="card analytics-card pr-analytics">
+                <div className="analytics-card-head">
+                  <div>
+                    <span className="label">Personal Records</span>
+                    <strong>{progressAnalytics.records.verified} verified</strong>
+                  </div>
+                  <span className="material-symbols-outlined stat-icon">emoji_events</span>
+                </div>
+                <div className="pr-analytics-body">
+                  <div>
+                    <span>Pending review</span>
+                    <strong>{progressAnalytics.records.pending}</strong>
+                  </div>
+                  <div>
+                    <span>Latest</span>
+                    <strong>{progressAnalytics.records.latest ? `${progressAnalytics.records.latest.exercise_name} ${Number(progressAnalytics.records.latest.value).toLocaleString()}${progressAnalytics.records.latest.unit}` : 'No PR yet'}</strong>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
 
           <section className="fade delay-3 nutrition-shell">
             <div className="section-header">
@@ -2103,16 +2405,31 @@ export function MemberDashboardPage() {
                     <span>Notes</span>
                     <input name="notes" onChange={updatePrField} placeholder="Felt clean, no spotter" type="text" value={prForm.notes} />
                   </label>
+                  {needsPrVideoProof ? (
+                    <label className="dashboard-field pr-proof">
+                      <span>Video Proof Required</span>
+                      <input
+                        accept="video/mp4,video/webm,video/quicktime"
+                        onChange={(event) => setPrProofFile(event.target.files?.[0] || null)}
+                        required
+                        type="file"
+                      />
+                    </label>
+                  ) : null}
                   <button className="btn btn-primary" disabled={isSavingPr} type="submit">{isSavingPr ? 'Saving...' : 'Save PR'}</button>
                 </form>
-                {prMessage ? <p className="dashboard-message success">{prMessage}</p> : null}
+                {prMessage ? <p className={`dashboard-message ${isPrError ? 'error' : 'success'}`}>{prMessage}</p> : null}
                 <div className="profile-pr-list">
                   {personalRecords.length ? personalRecords.map((record) => (
                     <article key={record.id}>
                       <div>
                         <span>{record.category || 'PR'}</span>
                         <h3>{record.exercise_name}</h3>
-                        <p>{record.record_type} · {new Date(record.recorded_at).toLocaleDateString()}</p>
+                        <p>
+                          {record.record_type} · {new Date(record.recorded_at).toLocaleDateString()}
+                          {isPrVerified(record) ? <em className="pr-status verified">Verified</em> : <em className="pr-status pending">Pending review</em>}
+                          {record.proof_url ? <em className="pr-status proof">Proof uploaded</em> : null}
+                        </p>
                       </div>
                       <strong>{Number(record.value).toLocaleString()} {record.unit}</strong>
                       <button aria-label={`Delete ${record.exercise_name} PR`} onClick={() => deletePersonalRecord(record)} type="button">
@@ -2128,6 +2445,8 @@ export function MemberDashboardPage() {
             </section>
           ) : activeTab === 'food' ? (
             <section className="food-tab fade">
+              {renderTodayNutrition()}
+
               <div className="section-header">
                 <div className="dashboard-tab-switch">
                   {MEAL_FILTERS.map((type) => (

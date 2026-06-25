@@ -731,8 +731,172 @@
   margin-left: auto;
 }
 
+.member-dashboard-page .progress-analytics {
+  display: grid;
+  gap: 14px;
+}
+
+.member-dashboard-page .analytics-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.member-dashboard-page .analytics-card {
+  display: grid;
+  gap: 18px;
+  min-height: 210px;
+  overflow: hidden;
+  padding: 22px;
+  position: relative;
+}
+
+.member-dashboard-page .analytics-card::before {
+  background: linear-gradient(90deg, var(--green), rgba(45, 212, 191, 0.72), transparent);
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.member-dashboard-page .analytics-card-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.member-dashboard-page .analytics-card-head strong {
+  color: var(--text);
+  display: block;
+  font-size: 23px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+  margin-top: 7px;
+}
+
+.member-dashboard-page .weight-track {
+  display: grid;
+  gap: 13px;
+}
+
+.member-dashboard-page .weight-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 58px minmax(0, 1fr) 44px;
+}
+
+.member-dashboard-page .weight-row span,
+.member-dashboard-page .weight-row strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.member-dashboard-page .weight-row strong {
+  color: var(--text);
+  text-align: right;
+}
+
+.member-dashboard-page .analytics-bar-bg {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.member-dashboard-page .analytics-bar-fill {
+  border-radius: inherit;
+  height: 100%;
+}
+
+.member-dashboard-page .weight-fill {
+  background: linear-gradient(90deg, var(--green), var(--cyan));
+}
+
+.member-dashboard-page .mini-bar-chart,
+.member-dashboard-page .calorie-sparkline {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-height: 116px;
+}
+
+.member-dashboard-page .mini-bar,
+.member-dashboard-page .calorie-point {
+  align-items: center;
+  display: grid;
+  gap: 7px;
+  height: 116px;
+  justify-items: center;
+}
+
+.member-dashboard-page .mini-bar div,
+.member-dashboard-page .calorie-point div {
+  align-self: end;
+  background: linear-gradient(180deg, var(--green), rgba(34, 197, 94, 0.22));
+  border-radius: 999px 999px 6px 6px;
+  min-height: 8px;
+  width: 100%;
+}
+
+.member-dashboard-page .calorie-point div {
+  background: linear-gradient(180deg, var(--yellow), rgba(232, 169, 0, 0.18));
+}
+
+.member-dashboard-page .mini-bar span,
+.member-dashboard-page .calorie-point small,
+.member-dashboard-page .calorie-point span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.member-dashboard-page .calorie-point span {
+  color: var(--text);
+  font-size: 9px;
+  min-height: 12px;
+}
+
+.member-dashboard-page .pr-analytics-body {
+  display: grid;
+  gap: 12px;
+}
+
+.member-dashboard-page .pr-analytics-body div {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 13px;
+}
+
+.member-dashboard-page .pr-analytics-body span {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .pr-analytics-body strong {
+  color: var(--text);
+  display: block;
+  font-size: 15px;
+  font-weight: 950;
+  margin-top: 6px;
+}
+
 .member-dashboard-page .nutrition-shell {
   margin-bottom: 20px;
+}
+
+.member-dashboard-page.tab-overview .nutrition-shell {
+  display: none;
 }
 
 .member-dashboard-page .nutrition-grid {
@@ -1828,8 +1992,24 @@
 }
 
 .member-dashboard-page .leaderboard-row:first-child .leaderboard-rank {
-  background: var(--green);
-  color: var(--green-ink);
+  background: linear-gradient(145deg, #ffd86b, #b98212);
+  border-color: rgba(255, 216, 107, 0.6);
+  box-shadow: 0 0 24px rgba(255, 216, 107, 0.18);
+  color: #1a1202;
+}
+
+.member-dashboard-page .leaderboard-row:nth-child(2) .leaderboard-rank {
+  background: linear-gradient(145deg, #f2f5f7, #8b949e);
+  border-color: rgba(242, 245, 247, 0.5);
+  box-shadow: 0 0 22px rgba(226, 232, 240, 0.14);
+  color: #111827;
+}
+
+.member-dashboard-page .leaderboard-row:nth-child(3) .leaderboard-rank {
+  background: linear-gradient(145deg, #d9995c, #7a3f16);
+  border-color: rgba(217, 153, 92, 0.5);
+  box-shadow: 0 0 22px rgba(217, 153, 92, 0.14);
+  color: #1d0f05;
 }
 
 .member-dashboard-page .leaderboard-row strong {
@@ -2285,6 +2465,26 @@
   grid-column: 1 / -2;
 }
 
+.member-dashboard-page .profile-pr-form .pr-proof {
+  grid-column: 1 / -2;
+}
+
+.member-dashboard-page .profile-pr-form input[type='file'] {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.member-dashboard-page .profile-pr-form input[type='file']::file-selector-button {
+  background: rgba(34, 197, 94, 0.16);
+  border: 1px solid rgba(34, 197, 94, 0.42);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 850;
+  margin-right: 12px;
+  padding: 8px 12px;
+}
+
 .member-dashboard-page .profile-pr-list {
   display: grid;
   gap: 10px;
@@ -2323,6 +2523,33 @@
   font-size: 12px;
   font-weight: 750;
   margin: 4px 0 0;
+}
+
+.member-dashboard-page .pr-status {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  margin-left: 10px;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.member-dashboard-page .pr-status.pending {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+}
+
+.member-dashboard-page .pr-status.verified {
+  background: rgba(34, 197, 94, 0.14);
+  color: var(--green);
+}
+
+.member-dashboard-page .pr-status.proof {
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
 }
 
 .member-dashboard-page .profile-pr-list strong {
@@ -2425,6 +2652,7 @@
 @media (max-width: 1180px) {
   .member-dashboard-page .hero-layout,
   .member-dashboard-page .middle-grid,
+  .member-dashboard-page .analytics-grid,
   .member-dashboard-page .dashboard-classes-grid,
   .member-dashboard-page .nutrition-grid,
   .member-dashboard-page .dashboard-profile-grid,
@@ -2466,6 +2694,10 @@
   }
 
   .member-dashboard-page .food-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .member-dashboard-page .analytics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -2569,6 +2801,14 @@
 
   .member-dashboard-page .food-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .member-dashboard-page .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .member-dashboard-page .analytics-card {
+    min-height: 190px;
   }
 
   .member-dashboard-page .profile-pr-form .pr-notes,

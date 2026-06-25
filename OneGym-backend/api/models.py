@@ -4,6 +4,8 @@ from django.db import models
 class User(models.Model):
     ROLE_CHOICES = [
         ('member', 'Member'),
+        ('pro', 'Pro Member'),
+        ('studio', 'Studio Member'),
         ('trainer', 'Trainer'),
         ('admin', 'Admin'),
         ('owner', 'Owner'),
@@ -46,6 +48,60 @@ class PasswordResetCode(models.Model):
 
     class Meta:
         db_table = 'password_reset_codes'
+        ordering = ['-created_at']
+
+
+class Plan(models.Model):
+    code = models.CharField(max_length=30, unique=True)
+    name = models.CharField(max_length=80)
+    price_cents = models.PositiveIntegerField(default=0)
+    currency = models.CharField(max_length=10, default='MYR')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'plans'
+        ordering = ['price_cents']
+
+    def __str__(self):
+        return self.name
+
+
+class UserSubscription(models.Model):
+    STATUS_CHOICES = [
+        ('free', 'Free'),
+        ('active', 'Active'),
+        ('trialing', 'Trialing'),
+        ('past_due', 'Past due'),
+        ('canceled', 'Canceled'),
+    ]
+
+    user = models.ForeignKey(User, models.CASCADE, db_column='user_id', related_name='subscriptions')
+    plan = models.ForeignKey(Plan, models.PROTECT, db_column='plan_id')
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='free')
+    stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
+    stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True)
+    stripe_payment_link_id = models.CharField(max_length=255, blank=True, null=True)
+    current_period_start = models.DateTimeField(blank=True, null=True)
+    current_period_end = models.DateTimeField(blank=True, null=True)
+    canceled_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_subscriptions'
+        ordering = ['-created_at']
+
+
+class PaymentEvent(models.Model):
+    user = models.ForeignKey(User, models.SET_NULL, db_column='user_id', blank=True, null=True)
+    stripe_event_id = models.CharField(max_length=255, unique=True)
+    event_type = models.CharField(max_length=120)
+    payload_json = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'payment_events'
         ordering = ['-created_at']
 
 
@@ -138,6 +194,11 @@ class PersonalRecord(models.Model):
     unit = models.CharField(max_length=30)
     recorded_at = models.DateTimeField()
     notes = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=30, default='auto_accepted')
+    is_verified = models.BooleanField(default=True)
+    verification_reason = models.CharField(max_length=255, blank=True, null=True)
+    proof_url = models.CharField(max_length=255, blank=True, null=True)
+    proof_file_name = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

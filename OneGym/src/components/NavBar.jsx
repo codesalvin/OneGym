@@ -120,9 +120,9 @@ export function NavBar() {
           </li>
           
           <li><a href="/support">Support</a></li>
-          <li><a href="#">Resources</a></li>
+          <li><a href="/pricing">Pricing</a></li>
         </ul>
-        <a className="nav-pill" href="#">All articles</a>
+        <a className="nav-pill" href="/pricing">View plans</a>
         {user ? (
           <div className="profile-menu">
             <button className="profile-trigger" type="button" aria-label="Open profile menu">

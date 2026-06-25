@@ -29,8 +29,12 @@ export function HomePage() {
         <div className="hero-inner">
           <div className="hero-dumbbell-photo" aria-hidden="true"></div>
           <div className="hero-text">
-            <h1>Manage your gym like a <span>champion</span></h1>
-            <p>Your gym runs itself while you build something bigger. OneGym takes the daily grind and turns it into simple numbers on a screen.</p>
+            <h1>Train smarter with a gym that <span>knows you</span></h1>
+            <p>OneGym gives members one place to book classes, track meals, log workouts, chat with trainers, and see real progress.</p>
+            <div className="hero-ctas">
+              <a className="btn btn-primary" href="/signin">Start Training</a>
+              <a className="btn btn-outline" href="/pricing">View Plans</a>
+            </div>
           </div>
         </div>
       </section>
@@ -57,14 +61,14 @@ export function HomePage() {
       <section className="difference-editorial" id="features">
         <div className="difference-layout">
           <div className="difference-lead">
-            <h2>What makes OneGym different</h2>
-            <p>OneGym keeps bookings, trainers, workouts, meals, and member progress in one live operating view.</p>
+            <h2>Built around the member experience</h2>
+            <p>Members should not need five apps to understand their training. OneGym connects bookings, nutrition, workouts, trainer chat, and progress into one calm dashboard.</p>
             <div className="difference-actions">
-              <a className="btn btn-primary" href="/signin">Start Managing</a>
-              <a className="difference-link" href="/join-trainer">Join as Trainer</a>
+              <a className="btn btn-primary" href="/signin">Open Member Dashboard</a>
+              <a className="difference-link" href="/pricing">See gym plans</a>
             </div>
             <img
-              alt="Gym members training with coach in a modern studio"
+              alt="Gym member training with coach in a modern studio"
               src="https://images.unsplash.com/photo-1571019613914-85f342c6a11e?auto=format&fit=crop&w=1300&q=85"
             />
           </div>
@@ -75,8 +79,8 @@ export function HomePage() {
               src="https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=900&q=85"
             />
             <div>
-              <h3>Live class flow, not admin noise</h3>
-              <p>Trainers create sessions, members reserve instantly, and every dashboard updates from the same source of truth.</p>
+              <h3>Gyms adopt it. Members feel it.</h3>
+              <p>Owners get the system, but the daily value lands with members: fewer missed classes, clearer goals, and trainers who can actually see their progress.</p>
               <a href="/member-dashboard">Explore member dashboard</a>
             </div>
           </aside>
@@ -87,29 +91,29 @@ export function HomePage() {
       <section className="steps">
         <div className="container">
           <div className="bento-heading">
-            <p className="label">Workflow</p>
-            <h2>Run the whole gym from one calm command center</h2>
+            <p className="label">Member-first system</p>
+            <h2>Everything a member needs, connected for the gym</h2>
           </div>
 
           <div className="bento-grid">
             <article className="bento-card bento-large bento-setup">
               <div>
                 <p className="step-num">01&nbsp;&nbsp;Set up</p>
-                <h2>Create your gym profile</h2>
-                <p>Add your gym details, membership rates, room capacity, and class rules in minutes.</p>
+                <h2>Give members a real home base</h2>
+                <p>Every member gets a dashboard for their classes, goals, meals, workouts, and trainer conversations.</p>
               </div>
               <div className="bento-profile-panel">
                 <div className="bento-profile-row">
-                  <span>Rooms</span>
-                  <strong>4 studios</strong>
+                  <span>Progress</span>
+                  <strong>Live</strong>
                 </div>
                 <div className="bento-profile-row">
-                  <span>Plans</span>
-                  <strong>3 tiers</strong>
+                  <span>Meals</span>
+                  <strong>Tracked</strong>
                 </div>
                 <div className="bento-profile-row">
-                  <span>Capacity</span>
-                  <strong>86%</strong>
+                  <span>Classes</span>
+                  <strong>Booked</strong>
                 </div>
               </div>
             </article>
@@ -117,8 +121,8 @@ export function HomePage() {
             <article className="bento-card bento-wide bento-schedule">
               <div>
                 <p className="step-num">02&nbsp;&nbsp;Scheduling</p>
-                <h2>Classes that book themselves</h2>
-                <p>Publish sessions, track remaining slots, and let members reserve without front desk friction.</p>
+                <h2>Classes members can trust</h2>
+                <p>Members see upcoming sessions, available slots, trainer names, and booking status without chasing the front desk.</p>
               </div>
               <div className="bento-calendar">
                 <span>Mon</span>
@@ -130,8 +134,8 @@ export function HomePage() {
             <article className="bento-card bento-members">
               <div>
                 <p className="step-num">03&nbsp;&nbsp;Members</p>
-                <h2>Bring members online</h2>
-                <p>Give every member a dashboard for bookings, nutrition, and training history.</p>
+                <h2>Keep people coming back</h2>
+                <p>Training history, streaks, and personal records make progress visible enough to feel worth continuing.</p>
               </div>
               <div className="bento-avatar-stack">
                 <img alt="OneGym member" src="https://images.unsplash.com/photo-1531891437562-4301cf35b7e4?auto=format&fit=crop&w=160&q=80" />
@@ -143,26 +147,26 @@ export function HomePage() {
 
             <article className="bento-card bento-report">
               <p className="step-num">04&nbsp;&nbsp;Reporting</p>
-              <h2>Know what changed</h2>
-              <p>Watch workouts, attendance, and member activity move in real time.</p>
+              <h2>Progress that is easy to read</h2>
+              <p>Members see workout frequency, calories, weight changes, and records in charts that make sense.</p>
               <div className="bento-bars"><i></i><i></i><i></i><i></i></div>
             </article>
 
             <article className="bento-card bento-payments">
-              <p className="step-num">05&nbsp;&nbsp;Payments</p>
-              <h2>Less admin, cleaner billing</h2>
-              <p>Keep renewals, plans, and membership status in one place.</p>
+              <p className="step-num">05&nbsp;&nbsp;Gym system</p>
+              <h2>Still works for owners</h2>
+              <p>Behind the member experience, gyms can manage plans, classes, trainers, and activity from one system.</p>
               <div className="bento-billing-list">
-                <span><strong>Premium Plan</strong><em>Renews Jun 28</em></span>
-                <span><strong>Family Add-on</strong><em>2 members</em></span>
-                <span><strong>Status</strong><em>Clear</em></span>
+                <span><strong>Pro Members</strong><em>Active</em></span>
+                <span><strong>Studio Plan</strong><em>Available</em></span>
+                <span><strong>Trainers</strong><em>Approved</em></span>
               </div>
             </article>
 
             <article className="bento-card bento-ai">
               <p className="step-num">06&nbsp;&nbsp;AI Assist</p>
-              <h2>Smarter meal guidance</h2>
-              <p>Members get nutrition recommendations based on their logged progress.</p>
+              <h2>Guidance between sessions</h2>
+              <p>Members can ask for meal ideas and training support based on the goals and logs already inside OneGym.</p>
               <a className="bento-start-button" href="/signin">
                 Start
                 <span className="material-symbols-outlined">arrow_forward</span>
@@ -182,22 +186,22 @@ export function HomePage() {
           </svg>
           OneGym
         </div>
-        <blockquote>OneGym cut our admin time in half and our members love the booking system.</blockquote>
+        <blockquote>OneGym made progress feel visible. I know what I trained, what I ate, and what to book next.</blockquote>
         <div className="testimonial-avatar">MR</div>
-        <cite>Marcus Reid</cite>
-        <p className="role">Owner, CrossFit gym</p>
+        <cite>Alyssa Chen</cite>
+        <p className="role">OneGym member</p>
       </div>
 
       {/* Final Call To Action Section */}
       <section className="cta-section">
         <div className="container">
           <div className="cta-text">
-            <h2>Stop managing,<br />start growing</h2>
-            <p>Join gym owners who have taken control of their business with OneGym today.</p>
+            <h2>Make your gym feel<br />more personal</h2>
+            <p>For members, OneGym is progress in one place. For gyms, it is the system that keeps that experience running.</p>
             <div className="cta-btns">
-              <a className="btn btn-primary" href="/signin">Join Now</a>
-              <a className="btn btn-outline" href="/join-trainer">Join as Trainer</a>
-              <a className="btn btn-outline" href="/signin">Sign In</a>
+              <a className="btn btn-primary" href="/signin">Start as Member</a>
+              <a className="btn btn-outline" href="/pricing">View Pricing</a>
+              <a className="btn btn-outline" href="/join-trainer">Trainer Portal</a>
             </div>
           </div>
         </div>

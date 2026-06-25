@@ -10,8 +10,8 @@ export function Footer() {
                     <ul className="footer-links">
                         <li><a href="#">About us</a></li>
                         <li><a href="#">Contact</a></li>
-                        <li><a href="#">Support</a></li>
-                        <li><a href="#">Pricing</a></li>
+                        <li><a href="/support">Support</a></li>
+                        <li><a href="/pricing">Pricing</a></li>
                         <li><a href="#">Blog</a></li>
                     </ul>
                     <div className="social-icons">

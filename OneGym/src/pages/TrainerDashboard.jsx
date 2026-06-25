@@ -4,6 +4,7 @@ import './TrainerDashboard.css';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 const CLIENT_PROGRESS_TARGET = 12;
 const REFRESH_INTERVAL_MS = 15000;
+const MEMBER_SIDE_ROLES = new Set(['member', 'pro', 'studio']);
 const emptyClassForm = {
   title: '',
   room: '',
@@ -156,7 +157,7 @@ export function TrainerDashboardPage() {
         throw new Error(conversationsData?.detail || 'Unable to load trainer messages.');
       }
 
-      const memberUsers = Array.isArray(usersData) ? usersData.filter((user) => user.role === 'member') : [];
+      const memberUsers = Array.isArray(usersData) ? usersData.filter((user) => MEMBER_SIDE_ROLES.has(user.role)) : [];
       const workoutPairs = await Promise.all(
         memberUsers.slice(0, 12).map(async (member) => {
           try {
@@ -234,7 +235,7 @@ export function TrainerDashboardPage() {
     }
   }
 
-  const memberUsers = useMemo(() => users.filter((user) => user.role === 'member'), [users]);
+  const memberUsers = useMemo(() => users.filter((user) => MEMBER_SIDE_ROLES.has(user.role)), [users]);
   const trainerUsers = useMemo(() => users.filter((user) => user.role === 'trainer'), [users]);
   const thisWeekClasses = useMemo(() => classes.filter((item) => isThisWeek(item.schedule_time)), [classes]);
   const todayClasses = useMemo(() => classes.filter((item) => isToday(item.schedule_time)).slice(0, 5), [classes]);
@@ -303,12 +304,31 @@ export function TrainerDashboardPage() {
     { id: 'programs', label: 'Programs', icon: 'fitness_center' },
     { id: 'messages', label: 'Messages', icon: 'chat_bubble', badge: unreadMessageCount },
   ];
+  const tabTitle = {
+    overview: 'Trainer Portal',
+    clients: 'Clients',
+    schedule: 'Schedule',
+    programs: 'Programs',
+    messages: 'Messages',
+  }[activeTab];
+  const tabDescription = {
+    overview: `Welcome back, ${trainerName}. Here is your coaching overview.`,
+    clients: `Welcome back, ${trainerName}. Track client progress and next sessions.`,
+    schedule: `Welcome back, ${trainerName}. Create classes and review your schedule.`,
+    programs: `Welcome back, ${trainerName}. Manage programs for your members.`,
+    messages: `Welcome back, ${trainerName}. Reply to member messages.`,
+  }[activeTab];
 
   return (
     <div className="trainer-dashboard-page">
       <aside className="trainer-sidebar">
-        <a className="trainer-brand" href="/">OneGym</a>
-        <p>Trainer Portal</p>
+        <a className="trainer-brand" href="/">
+          <span className="trainer-brand-mark">OG</span>
+          <span className="trainer-brand-text">
+            <strong>OneGym</strong>
+            <small>Trainer Space</small>
+          </span>
+        </a>
         <nav>
           {navItems.map((item) => (
             <button
@@ -333,8 +353,8 @@ export function TrainerDashboardPage() {
         <header className="trainer-topbar">
           <a className="trainer-mobile-brand" href="/">OneGym</a>
           <div>
-            <p className="trainer-eyebrow">Welcome back</p>
-            <h1>{trainerName}</h1>
+            <h1>{tabTitle}</h1>
+            <p>{tabDescription}</p>
           </div>
           <div className="trainer-top-actions">
             <label>

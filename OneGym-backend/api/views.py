@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -13,8 +14,10 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from datetime import datetime, timedelta
+from decimal import Decimal
 import base64
 import hashlib
+import hmac
 import json
 from pathlib import Path
 import re
@@ -59,6 +62,11 @@ ALLOWED_CERTIFICATION_CONTENT_TYPES = {
 MAX_CERTIFICATION_FILE_SIZE = 10 * 1024 * 1024
 AUTH_TOKEN_LIFETIME = timedelta(days=30)
 AUTH_COOKIE_NAME = 'onegym_auth'
+MEMBER_SUBSCRIPTION_ROLES = {'member', 'pro', 'studio'}
+STRIPE_PLAN_BY_PAYMENT_LINK = {
+    settings.STRIPE_PRO_PAYMENT_LINK_ID: 'pro',
+    settings.STRIPE_STUDIO_PAYMENT_LINK_ID: 'studio',
+}
 
 
 def extract_json_object(text):
@@ -152,6 +160,18 @@ def get_ollama_text(payload):
         return payload.get('response') or payload.get('message', {}).get('content') or ''
 
     return ''
+
+
+def get_gemini_text(payload):
+    if not isinstance(payload, dict):
+        return ''
+
+    parts = (
+        payload.get('candidates', [{}])[0]
+        .get('content', {})
+        .get('parts', [])
+    )
+    return ''.join(part.get('text', '') for part in parts if isinstance(part, dict))
 
 
 def find_nested_value(data, keys):
@@ -297,6 +317,72 @@ def post_ollama_generate(payload):
         return response.json()
     except ValueError as error:
         raise ValueError('Ollama returned an invalid response.') from error
+
+
+def build_gemini_text_payload(prompt):
+    return {
+        'contents': [
+            {
+                'role': 'user',
+                'parts': [{'text': prompt}],
+            },
+        ],
+        'generationConfig': {
+            'temperature': 0.3,
+            'maxOutputTokens': 500,
+        },
+    }
+
+
+def build_gemini_image_payload(image_data, mime_type, strict_retry=False):
+    return {
+        'contents': [
+            {
+                'role': 'user',
+                'parts': [
+                    {'text': build_food_prompt(strict_retry)},
+                    {
+                        'inlineData': {
+                            'mimeType': mime_type,
+                            'data': image_data,
+                        },
+                    },
+                ],
+            },
+        ],
+        'generationConfig': {
+            'temperature': 0.2 if strict_retry else 0.1,
+            'maxOutputTokens': 500,
+        },
+    }
+
+
+def post_gemini_generate(payload):
+    if not settings.GEMINI_API_KEY:
+        raise ValueError('Add GEMINI_API_KEY to OneGym-backend/.env to enable AI features.')
+
+    endpoint = (
+        'https://generativelanguage.googleapis.com/v1beta/'
+        f'models/{settings.GEMINI_MODEL}:generateContent'
+    )
+
+    try:
+        response = http_requests.post(endpoint, params={'key': settings.GEMINI_API_KEY}, json=payload, timeout=150)
+    except http_requests.RequestException as error:
+        raise ValueError(f'Gemini request failed: {error}') from error
+
+    if response.status_code >= 400:
+        try:
+            error_data = response.json()
+            error_message = error_data.get('error', {}).get('message') or 'Gemini service is unavailable.'
+        except ValueError:
+            error_message = response.text or 'Gemini service is unavailable.'
+        raise ValueError(error_message)
+
+    try:
+        return response.json()
+    except ValueError as error:
+        raise ValueError('Gemini returned an invalid response.') from error
 
 
 def summarize_today_meals(user_id):
@@ -724,9 +810,9 @@ def ai_assistant_chat(request):
         return Response({'detail': 'User id is required.'}, status=status.HTTP_400_BAD_REQUEST)
     if not message:
         return Response({'detail': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
-    if settings.OLLAMA_BASE_URL.rstrip('/').startswith('https://ollama.com') and not settings.OLLAMA_API_KEY:
+    if not settings.GEMINI_API_KEY:
         return Response(
-            {'detail': 'Add OLLAMA_API_KEY to OneGym-backend/.env to enable AI Assistant chat.'},
+            {'detail': 'Add GEMINI_API_KEY to OneGym-backend/.env to enable AI Assistant chat.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -739,8 +825,8 @@ def ai_assistant_chat(request):
     save_ai_chat_message(user_id, 'user', message)
 
     try:
-        response_data = post_ollama_generate(build_ollama_chat_payload(message, meals, totals))
-        reply = get_ollama_text(response_data).strip()
+        response_data = post_gemini_generate(build_gemini_text_payload(build_assistant_prompt(message, meals, totals)))
+        reply = get_gemini_text(response_data).strip()
     except Exception as error:
         return Response(
             {'detail': str(error) or 'AI Assistant is unavailable.'},
@@ -768,7 +854,7 @@ def ai_assistant_chat(request):
 
 
 def analyze_food_image(uploaded_file):
-    if settings.OLLAMA_BASE_URL.rstrip('/').startswith('https://ollama.com') and not settings.OLLAMA_API_KEY:
+    if not settings.GEMINI_API_KEY:
         return {
             'description': '',
             'calories': '',
@@ -777,10 +863,10 @@ def analyze_food_image(uploaded_file):
             'fats_g': '',
             'confidence': 'manual_required',
             'detected_foods': [],
-            'detail': 'Add OLLAMA_API_KEY to OneGym-backend/.env to enable Ollama Cloud food photo estimates.',
+            'detail': 'Add GEMINI_API_KEY to OneGym-backend/.env to enable food photo estimates.',
         }
 
-    if not settings.OLLAMA_VISION_MODEL:
+    if not settings.GEMINI_MODEL:
         return {
             'description': '',
             'calories': '',
@@ -789,44 +875,45 @@ def analyze_food_image(uploaded_file):
             'fats_g': '',
             'confidence': 'manual_required',
             'detected_foods': [],
-            'detail': 'Add OLLAMA_VISION_MODEL to OneGym-backend/.env to enable food photo estimates.',
+            'detail': 'Add GEMINI_MODEL to OneGym-backend/.env to enable food photo estimates.',
         }
 
     uploaded_file.seek(0)
     image_bytes = uploaded_file.read()
     image_data = base64.b64encode(image_bytes).decode('ascii')
+    mime_type = uploaded_file.content_type or 'image/jpeg'
 
-    response_data = post_ollama_generate(build_ollama_payload(image_data))
-    content = get_ollama_text(response_data)
+    response_data = post_gemini_generate(build_gemini_image_payload(image_data, mime_type))
+    content = get_gemini_text(response_data)
     if not content:
-        raise ValueError('Ollama did not return a nutrition estimate.')
+        raise ValueError('Gemini did not return a nutrition estimate.')
 
     estimate = extract_json_object(content)
     normalized = normalize_food_estimate(estimate, content)
 
     if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
-        retry_content = get_ollama_text(post_ollama_generate(build_ollama_text_payload(content)))
+        retry_content = get_gemini_text(post_gemini_generate(build_gemini_text_payload(build_ollama_text_payload(content)['prompt'])))
         if not retry_content:
-            raise ValueError('Ollama described the food but did not return nutrition numbers.')
+            raise ValueError('Gemini described the food but did not return nutrition numbers.')
         normalized = normalize_food_estimate(extract_json_object(retry_content), retry_content)
 
     normalized['description'] = shorten_description(normalized['description'])
 
     if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
-        retry_content = get_ollama_text(post_ollama_generate(build_ollama_payload(image_data, strict_retry=True)))
+        retry_content = get_gemini_text(post_gemini_generate(build_gemini_image_payload(image_data, mime_type, strict_retry=True)))
         if retry_content:
             normalized = normalize_food_estimate(extract_json_object(retry_content), retry_content)
             normalized['description'] = shorten_description(normalized['description'])
 
     if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
-        text_retry_content = get_ollama_text(post_ollama_generate(build_ollama_text_payload(content)))
+        text_retry_content = get_gemini_text(post_gemini_generate(build_gemini_text_payload(build_ollama_text_payload(content)['prompt'])))
         if text_retry_content:
             normalized = normalize_food_estimate(extract_json_object(text_retry_content), text_retry_content)
             normalized['description'] = shorten_description(normalized['description'])
 
     if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
         normalized['description'] = extract_partial_description(content)
-        raise ValueError('Ollama described the food but did not return nutrition numbers. Try a clearer, closer food photo.')
+        raise ValueError('Gemini described the food but did not return nutrition numbers. Try a clearer, closer food photo.')
 
     normalized['detail'] = 'Nutrition estimate generated from photo.'
     return normalized
@@ -1074,6 +1161,364 @@ def health_check(_request):
     })
 
 
+def verify_stripe_signature(payload, signature_header):
+    if not settings.STRIPE_WEBHOOK_SECRET:
+        raise ValueError('Add STRIPE_WEBHOOK_SECRET to OneGym-backend/.env before using Stripe webhooks.')
+
+    values = {}
+    for part in (signature_header or '').split(','):
+        if '=' not in part:
+            continue
+        key, value = part.split('=', 1)
+        values.setdefault(key, []).append(value)
+
+    timestamp = values.get('t', [None])[0]
+    signatures = values.get('v1', [])
+    if not timestamp or not signatures:
+        raise ValueError('Stripe signature is missing.')
+
+    signed_payload = f'{timestamp}.'.encode('utf-8') + payload
+    expected = hmac.new(
+        settings.STRIPE_WEBHOOK_SECRET.encode('utf-8'),
+        signed_payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not any(hmac.compare_digest(expected, signature) for signature in signatures):
+        raise ValueError('Stripe signature verification failed.')
+
+
+def find_user_for_stripe_object(stripe_object):
+    client_reference_id = stripe_object.get('client_reference_id')
+    customer_email = (
+        stripe_object.get('customer_email')
+        or stripe_object.get('receipt_email')
+        or stripe_object.get('customer_details', {}).get('email')
+        or stripe_object.get('metadata', {}).get('email')
+    )
+
+    with connection.cursor() as cursor:
+        if client_reference_id:
+            try:
+                user_id = int(client_reference_id)
+            except (TypeError, ValueError):
+                user_id = None
+            if user_id:
+                cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
+                row = cursor.fetchone()
+                if row:
+                    return row[0]
+
+        if customer_email:
+            cursor.execute('SELECT id FROM users WHERE email = %s LIMIT 1', [customer_email])
+            row = cursor.fetchone()
+            if row:
+                return row[0]
+
+    return None
+
+
+def plan_code_for_stripe_object(stripe_object):
+    metadata_plan = (stripe_object.get('metadata') or {}).get('plan')
+    if metadata_plan in {'free', 'pro', 'studio'}:
+        return metadata_plan
+
+    payment_link_id = stripe_object.get('payment_link') or stripe_object.get('stripe_payment_link_id')
+    mapped_plan = STRIPE_PLAN_BY_PAYMENT_LINK.get(payment_link_id)
+    if mapped_plan:
+        return mapped_plan
+
+    amount_total = stripe_object.get('amount_total')
+    if amount_total == 2900:
+        return 'pro'
+    if amount_total == 9900:
+        return 'studio'
+
+    return None
+
+
+def upsert_user_subscription(user_id, plan_code, stripe_object, subscription_status='active'):
+    if not user_id or plan_code not in {'free', 'pro', 'studio'}:
+        return False
+
+    stripe_customer_id = stripe_object.get('customer')
+    stripe_subscription_id = stripe_object.get('subscription') or stripe_object.get('id')
+    stripe_payment_link_id = stripe_object.get('payment_link')
+    member_role = plan_code if subscription_status in {'active', 'trialing'} and plan_code in {'pro', 'studio'} else 'member'
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id FROM plans WHERE code = %s LIMIT 1', [plan_code])
+        plan_row = cursor.fetchone()
+        if not plan_row:
+            return False
+
+        plan_id = plan_row[0]
+        cursor.execute(
+            '''
+            SELECT id
+            FROM user_subscriptions
+            WHERE user_id = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            ''',
+            [user_id],
+        )
+        existing = cursor.fetchone()
+
+        if existing:
+            cursor.execute(
+                '''
+                UPDATE user_subscriptions
+                SET plan_id = %s,
+                    status = %s,
+                    stripe_customer_id = COALESCE(%s, stripe_customer_id),
+                    stripe_subscription_id = COALESCE(%s, stripe_subscription_id),
+                    stripe_payment_link_id = COALESCE(%s, stripe_payment_link_id),
+                    current_period_start = COALESCE(current_period_start, NOW(6)),
+                    current_period_end = NULL,
+                    canceled_at = NULL
+                WHERE id = %s
+                ''',
+                [
+                    plan_id,
+                    subscription_status,
+                    stripe_customer_id,
+                    stripe_subscription_id,
+                    stripe_payment_link_id,
+                    existing[0],
+                ],
+            )
+        else:
+            cursor.execute(
+                '''
+                INSERT INTO user_subscriptions
+                    (user_id, plan_id, status, stripe_customer_id, stripe_subscription_id, stripe_payment_link_id, current_period_start, created_at, updated_at)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s, NOW(6), NOW(6), NOW(6))
+                ''',
+                [
+                    user_id,
+                    plan_id,
+                    subscription_status,
+                    stripe_customer_id,
+                    stripe_subscription_id,
+                    stripe_payment_link_id,
+                ],
+            )
+
+        cursor.execute(
+            '''
+            UPDATE users
+            SET role = %s
+            WHERE id = %s AND role IN (%s, %s, %s)
+            ''',
+            [member_role, user_id, 'member', 'pro', 'studio'],
+        )
+
+    return True
+
+
+def cancel_user_subscription_by_stripe_id(stripe_subscription_id):
+    if not stripe_subscription_id:
+        return False
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id FROM plans WHERE code = %s LIMIT 1', ['free'])
+        free_plan = cursor.fetchone()
+        if not free_plan:
+            return False
+
+        cursor.execute(
+            '''
+            UPDATE user_subscriptions
+            SET plan_id = %s,
+                status = 'canceled',
+                canceled_at = NOW(6)
+            WHERE stripe_subscription_id = %s
+            ''',
+            [free_plan[0], stripe_subscription_id],
+        )
+        updated = cursor.rowcount > 0
+        if updated:
+            cursor.execute(
+                '''
+                UPDATE users
+                INNER JOIN user_subscriptions ON user_subscriptions.user_id = users.id
+                SET users.role = %s
+                WHERE user_subscriptions.stripe_subscription_id = %s
+                  AND users.role IN (%s, %s, %s)
+                ''',
+                ['member', stripe_subscription_id, 'member', 'pro', 'studio'],
+            )
+        return updated
+
+
+@csrf_exempt
+@api_view(['POST'])
+def stripe_webhook(request):
+    payload = request.body
+    try:
+        verify_stripe_signature(payload, request.headers.get('Stripe-Signature', ''))
+        event = json.loads(payload.decode('utf-8'))
+    except (ValueError, json.JSONDecodeError) as error:
+        return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+    event_id = event.get('id')
+    event_type = event.get('type', '')
+    stripe_object = event.get('data', {}).get('object', {})
+
+    if not event_id:
+        return Response({'detail': 'Stripe event id is missing.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT id FROM payment_events WHERE stripe_event_id = %s LIMIT 1', [event_id])
+            if cursor.fetchone():
+                return Response({'detail': 'Event already processed.'})
+
+            user_id = find_user_for_stripe_object(stripe_object)
+            cursor.execute(
+                '''
+                INSERT INTO payment_events
+                    (user_id, stripe_event_id, event_type, payload_json, created_at)
+                VALUES
+                    (%s, %s, %s, %s, NOW(6))
+                ''',
+                [user_id, event_id, event_type, json.dumps(event)],
+            )
+
+        updated = False
+        if event_type == 'checkout.session.completed':
+            plan_code = plan_code_for_stripe_object(stripe_object)
+            updated = upsert_user_subscription(user_id, plan_code, stripe_object, 'active')
+        elif event_type in {'customer.subscription.updated', 'customer.subscription.created'}:
+            status_map = {
+                'active': 'active',
+                'trialing': 'trialing',
+                'past_due': 'past_due',
+                'canceled': 'canceled',
+                'unpaid': 'past_due',
+            }
+            subscription_status = status_map.get(stripe_object.get('status'), 'active')
+            plan_code = plan_code_for_stripe_object(stripe_object)
+            updated = upsert_user_subscription(user_id, plan_code, stripe_object, subscription_status)
+        elif event_type == 'customer.subscription.deleted':
+            updated = cancel_user_subscription_by_stripe_id(stripe_object.get('id'))
+
+    return Response({'received': True, 'subscription_updated': updated})
+
+
+PR_DAILY_LIMIT = 5
+PR_EXERCISE_CATEGORIES = {
+    'Strength': {
+        'Bench Press': ['weight', 'reps', 'volume'],
+        'Squat': ['weight', 'reps', 'volume'],
+        'Deadlift': ['weight', 'reps', 'volume'],
+        'Overhead Press': ['weight', 'reps', 'volume'],
+        'Barbell Row': ['weight', 'reps', 'volume'],
+        'Leg Press': ['weight', 'reps', 'volume'],
+        'Hip Thrust': ['weight', 'reps', 'volume'],
+        'Pull-Up': ['reps', 'weight', 'volume'],
+    },
+    'Cardio': {
+        'Running': ['time', 'distance'],
+        'Biking': ['time', 'distance'],
+        'Rowing': ['time', 'distance'],
+        'Swimming': ['time', 'distance'],
+        'Stair Climber': ['time'],
+        'Elliptical': ['time', 'distance'],
+        'Skipping': ['time', 'reps'],
+    },
+    'Mobility': {
+        'Front Split': ['time'],
+        'Side Split': ['time'],
+        'Shoulder Mobility': ['time'],
+        'Hip Mobility': ['time'],
+        'Deep Squat Hold': ['time'],
+        'Backbend': ['time'],
+    },
+    'Bodyweight': {
+        'Push-Up': ['reps', 'time'],
+        'Pull-Up': ['reps', 'weight', 'volume'],
+        'Dip': ['reps', 'weight', 'volume'],
+        'Plank': ['time'],
+        'Burpee': ['reps', 'time'],
+        'Pistol Squat': ['reps', 'weight'],
+        'Handstand Hold': ['time'],
+    },
+}
+PR_TYPE_UNITS = {
+    'weight': 'kg',
+    'reps': 'reps',
+    'time': 'min',
+    'distance': 'km',
+    'volume': 'kg',
+}
+PR_VALUE_LIMITS = {
+    'weight': (Decimal('1'), Decimal('500')),
+    'reps': (Decimal('1'), Decimal('1000')),
+    'time': (Decimal('0.1'), Decimal('1440')),
+    'distance': (Decimal('0.1'), Decimal('300')),
+    'volume': (Decimal('1'), Decimal('200000')),
+}
+PR_REVIEW_THRESHOLDS = {
+    'weight': Decimal('250'),
+    'reps': Decimal('300'),
+    'time': Decimal('240'),
+    'distance': Decimal('80'),
+    'volume': Decimal('50000'),
+}
+PR_PROOF_VIDEO_TYPES = {'video/mp4', 'video/webm', 'video/quicktime'}
+PR_PROOF_VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov'}
+
+
+def save_pr_proof_video(uploaded_file):
+    if not uploaded_file:
+        raise ValueError('Video proof is required for weight PRs of 251kg and above.')
+
+    extension = Path(uploaded_file.name).suffix.lower()
+    if uploaded_file.content_type not in PR_PROOF_VIDEO_TYPES or extension not in PR_PROOF_VIDEO_EXTENSIONS:
+        raise ValueError('Video proof must be an MP4, WebM, or MOV file.')
+
+    filename = f'personal_record_proofs/{secrets.token_urlsafe(16)}{extension}'
+    saved_path = default_storage.save(filename, ContentFile(uploaded_file.read()))
+    return default_storage.url(saved_path)
+
+
+def validate_personal_record_rules(category, exercise_name, record_type, value, unit):
+    category_exercises = PR_EXERCISE_CATEGORIES.get(category)
+    if not category_exercises:
+        return None, f'{category or "Selected category"} is not supported.'
+
+    allowed_types = category_exercises.get(exercise_name)
+    if not allowed_types:
+        return None, f'{exercise_name} is not available under {category}.'
+
+    if record_type not in allowed_types:
+        return None, f'{record_type} is not a valid record type for {exercise_name}.'
+
+    expected_unit = PR_TYPE_UNITS[record_type]
+    if unit != expected_unit:
+        return None, f'{record_type} records must use {expected_unit}.'
+
+    minimum, maximum = PR_VALUE_LIMITS[record_type]
+    if value < minimum or value > maximum:
+        return None, f'{record_type} value must be between {minimum} and {maximum} {expected_unit}.'
+
+    if value > PR_REVIEW_THRESHOLDS[record_type]:
+        return {
+            'status': 'pending',
+            'is_verified': False,
+            'verification_reason': f'High {record_type} PR needs review before it appears on leaderboards.',
+        }, None
+
+    return {
+        'status': 'auto_accepted',
+        'is_verified': True,
+        'verification_reason': None,
+    }, None
+
+
 def serialize_personal_record_row(row):
     (
         record_id,
@@ -1086,6 +1531,11 @@ def serialize_personal_record_row(row):
         unit,
         recorded_at,
         notes,
+        record_status,
+        is_verified,
+        verification_reason,
+        proof_url,
+        proof_file_name,
         created_at,
     ) = row
 
@@ -1100,6 +1550,11 @@ def serialize_personal_record_row(row):
         'unit': unit,
         'recorded_at': recorded_at,
         'notes': notes,
+        'status': record_status,
+        'is_verified': bool(is_verified),
+        'verification_reason': verification_reason,
+        'proof_url': proof_url,
+        'proof_file_name': proof_file_name,
         'created_at': created_at,
     }
 
@@ -1143,6 +1598,11 @@ def user_personal_records(_request, user_id):
                 pr.unit,
                 pr.recorded_at,
                 pr.notes,
+                pr.status,
+                pr.is_verified,
+                pr.verification_reason,
+                pr.proof_url,
+                pr.proof_file_name,
                 pr.created_at
             FROM personal_records pr
             INNER JOIN exercises e ON e.id = pr.exercise_id
@@ -1171,13 +1631,41 @@ def create_personal_record(request):
 
     exercise_name = data['exercise_name'].strip()
     category = (data.get('category') or '').strip() or None
-    unit = data['unit'].strip() or 'kg'
+    record_type = data['record_type'].strip().lower()
+    unit = data['unit'].strip().lower() or PR_TYPE_UNITS.get(record_type, 'kg')
     recorded_at = data.get('recorded_at') or timezone.now()
+    today_start = timezone.localtime(timezone.now()).replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow_start = today_start + timedelta(days=1)
+    record_policy, policy_error = validate_personal_record_rules(category, exercise_name, record_type, data['value'], unit)
+    if policy_error:
+        return Response({'detail': policy_error}, status=status.HTTP_400_BAD_REQUEST)
+
+    proof_url = None
+    proof_file_name = None
+    needs_weight_proof = record_type == 'weight' and data['value'] > PR_REVIEW_THRESHOLDS['weight']
+    if needs_weight_proof:
+        uploaded_proof = request.FILES.get('proof_video') or request.FILES.get('proof')
+        try:
+            proof_url = save_pr_proof_video(uploaded_proof)
+            proof_file_name = uploaded_proof.name
+        except ValueError as error:
+            return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     with connection.cursor() as cursor:
         cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [data['user_id']])
         if not cursor.fetchone():
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        cursor.execute(
+            '''
+            SELECT COUNT(*)
+            FROM personal_records
+            WHERE user_id = %s AND created_at >= %s AND created_at < %s
+            ''',
+            [data['user_id'], today_start, tomorrow_start],
+        )
+        if cursor.fetchone()[0] >= PR_DAILY_LIMIT:
+            return Response({'detail': f'Personal records are limited to {PR_DAILY_LIMIT} saves per day.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
         cursor.execute('SELECT id FROM exercises WHERE name = %s LIMIT 1', [exercise_name])
         exercise_row = cursor.fetchone()
@@ -1194,19 +1682,40 @@ def create_personal_record(request):
 
         cursor.execute(
             '''
+            SELECT id
+            FROM personal_records
+            WHERE user_id = %s
+              AND exercise_id = %s
+              AND record_type = %s
+              AND value = %s
+              AND DATE(recorded_at) = DATE(%s)
+            LIMIT 1
+            ''',
+            [data['user_id'], exercise_id, record_type, data['value'], recorded_at],
+        )
+        if cursor.fetchone():
+            return Response({'detail': 'This personal record has already been saved for that date.'}, status=status.HTTP_409_CONFLICT)
+
+        cursor.execute(
+            '''
             INSERT INTO personal_records
-                (user_id, exercise_id, record_type, value, unit, recorded_at, notes, created_at)
+                (user_id, exercise_id, record_type, value, unit, recorded_at, notes, status, is_verified, verification_reason, proof_url, proof_file_name, created_at)
             VALUES
-                (%s, %s, %s, %s, %s, %s, %s, NOW(6))
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(6))
             ''',
             [
                 data['user_id'],
                 exercise_id,
-                data['record_type'],
+                record_type,
                 data['value'],
                 unit,
                 recorded_at,
                 data.get('notes') or None,
+                record_policy['status'],
+                record_policy['is_verified'],
+                record_policy['verification_reason'],
+                proof_url,
+                proof_file_name,
             ],
         )
         record_id = cursor.lastrowid
@@ -1224,6 +1733,11 @@ def create_personal_record(request):
                 pr.unit,
                 pr.recorded_at,
                 pr.notes,
+                pr.status,
+                pr.is_verified,
+                pr.verification_reason,
+                pr.proof_url,
+                pr.proof_file_name,
                 pr.created_at
             FROM personal_records pr
             INNER JOIN exercises e ON e.id = pr.exercise_id
@@ -1274,26 +1788,47 @@ def user_list(_request):
         cursor.execute(
             '''
             SELECT
-                id,
-                username,
-                email,
-                role,
-                profile_photo_url,
-                fitness_goal,
-                training_style,
-                weekly_target,
-                weight_goal,
-                starting_weight,
-                current_weight,
-                goal_weight,
-                weekly_goal,
-                calorie_goal,
-                protein_goal,
-                carbs_goal,
-                fats_goal,
-                created_at
+                users.id,
+                users.username,
+                users.email,
+                users.role,
+                users.profile_photo_url,
+                users.fitness_goal,
+                users.training_style,
+                users.weekly_target,
+                users.weight_goal,
+                users.starting_weight,
+                users.current_weight,
+                users.goal_weight,
+                users.weekly_goal,
+                users.calorie_goal,
+                users.protein_goal,
+                users.carbs_goal,
+                users.fats_goal,
+                COALESCE(p.code, 'free') AS plan_code,
+                COALESCE(p.name, 'Free') AS plan_name,
+                COALESCE(us.status, 'free') AS subscription_status,
+                us.current_period_end AS subscription_current_period_end,
+                users.created_at
             FROM users
-            ORDER BY id
+            LEFT JOIN user_subscriptions us
+                ON us.user_id = users.id
+                AND us.id = (
+                    SELECT us2.id
+                    FROM user_subscriptions us2
+                    WHERE us2.user_id = users.id
+                    ORDER BY
+                        CASE
+                            WHEN us2.status IN ('active', 'trialing') THEN 0
+                            WHEN us2.status = 'free' THEN 1
+                            ELSE 2
+                        END,
+                        us2.created_at DESC,
+                        us2.id DESC
+                    LIMIT 1
+                )
+            LEFT JOIN plans p ON p.id = us.plan_id
+            ORDER BY users.id
             '''
         )
         users = [
@@ -1315,6 +1850,10 @@ def user_list(_request):
                 'protein_goal': protein_goal,
                 'carbs_goal': carbs_goal,
                 'fats_goal': fats_goal,
+                'plan_code': plan_code,
+                'plan_name': plan_name,
+                'subscription_status': subscription_status,
+                'subscription_current_period_end': subscription_current_period_end,
                 'created_at': created_at,
             }
             for (
@@ -1335,6 +1874,10 @@ def user_list(_request):
                 protein_goal,
                 carbs_goal,
                 fats_goal,
+                plan_code,
+                plan_name,
+                subscription_status,
+                subscription_current_period_end,
                 created_at,
             ) in cursor.fetchall()
         ]
@@ -1401,26 +1944,47 @@ def user_detail(request, user_id):
         cursor.execute(
             '''
             SELECT
-                id,
-                username,
-                email,
-                role,
-                profile_photo_url,
-                fitness_goal,
-                training_style,
-                weekly_target,
-                weight_goal,
-                starting_weight,
-                current_weight,
-                goal_weight,
-                weekly_goal,
-                calorie_goal,
-                protein_goal,
-                carbs_goal,
-                fats_goal,
-                created_at
+                users.id,
+                users.username,
+                users.email,
+                users.role,
+                users.profile_photo_url,
+                users.fitness_goal,
+                users.training_style,
+                users.weekly_target,
+                users.weight_goal,
+                users.starting_weight,
+                users.current_weight,
+                users.goal_weight,
+                users.weekly_goal,
+                users.calorie_goal,
+                users.protein_goal,
+                users.carbs_goal,
+                users.fats_goal,
+                COALESCE(p.code, 'free') AS plan_code,
+                COALESCE(p.name, 'Free') AS plan_name,
+                COALESCE(us.status, 'free') AS subscription_status,
+                us.current_period_end AS subscription_current_period_end,
+                users.created_at
             FROM users
-            WHERE id = %s
+            LEFT JOIN user_subscriptions us
+                ON us.user_id = users.id
+                AND us.id = (
+                    SELECT us2.id
+                    FROM user_subscriptions us2
+                    WHERE us2.user_id = users.id
+                    ORDER BY
+                        CASE
+                            WHEN us2.status IN ('active', 'trialing') THEN 0
+                            WHEN us2.status = 'free' THEN 1
+                            ELSE 2
+                        END,
+                        us2.created_at DESC,
+                        us2.id DESC
+                    LIMIT 1
+                )
+            LEFT JOIN plans p ON p.id = us.plan_id
+            WHERE users.id = %s
             LIMIT 1
             ''',
             [user_id],
@@ -1448,6 +2012,10 @@ def user_detail(request, user_id):
         protein_goal,
         carbs_goal,
         fats_goal,
+        plan_code,
+        plan_name,
+        subscription_status,
+        subscription_current_period_end,
         created_at,
     ) = row
     serializer = UserSerializer({
@@ -1468,6 +2036,10 @@ def user_detail(request, user_id):
         'protein_goal': protein_goal,
         'carbs_goal': carbs_goal,
         'fats_goal': fats_goal,
+        'plan_code': plan_code,
+        'plan_name': plan_name,
+        'subscription_status': subscription_status,
+        'subscription_current_period_end': subscription_current_period_end,
         'created_at': created_at,
     })
     return Response(serializer.data)

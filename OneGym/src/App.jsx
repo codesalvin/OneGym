@@ -6,6 +6,7 @@ import { JoinTrainerPage } from './pages/JoinTrainerPage';
 import { TrainerDashboardPage } from './pages/TrainerDashboard';
 import { TrainerChatPage } from './pages/TrainerChat';
 import { SupportPage } from './pages/SupportPage';
+import { PricingPage } from './pages/PricingPage';
 
 function getStoredUser() {
   try {
@@ -60,6 +61,7 @@ function App() {
       <Route index element={<HomePage />} />
       <Route path="/signin" element={<SignInPage />} />
       <Route path="/support" element={<SupportPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route path="/member-dashboard" element={<MemberOnly><MemberDashboardPage /></MemberOnly>} />
       <Route path="/trainer-chat" element={<AuthOnly><TrainerChatPage /></AuthOnly>} />
       <Route path="/join-trainer" element={<JoinTrainerPage />} />
