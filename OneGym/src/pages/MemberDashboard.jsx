@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import './MemberDashboard.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.DEV
+  ? '/api'
+  : (import.meta.env.VITE_API_BASE_URL || '/api');
 const API_ROOT = API_BASE_URL.replace(/\/api\/?$/, '');
 const CALORIE_GOAL = 2500;
 const PROTEIN_GOAL = 180;
@@ -301,6 +303,46 @@ function addDays(value, days) {
 
 function formatDateLabel(value = new Date()) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(value).toUpperCase();
+}
+
+function decodeAiJsonString(value = '') {
+  try {
+    return JSON.parse(`"${value}"`);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeAiContent(body, cards = [], note = '') {
+  if (typeof body !== 'string' || !body.trim().startsWith('{')) {
+    return { body, cards: Array.isArray(cards) ? cards : [], note };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    const field = (name) => {
+      const match = body.match(new RegExp(`"${name}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`));
+      return match ? decodeAiJsonString(match[1]) : '';
+    };
+    const recoveredCard = {
+      label: field('label'),
+      title: field('title'),
+      detail: field('detail'),
+    };
+    return {
+      body: field('summary') || 'Your recommendation is ready below.',
+      cards: recoveredCard.title ? [recoveredCard] : [],
+      note: field('note') || note,
+    };
+  }
+
+  return {
+    body: parsed.summary || parsed.reply || body,
+    cards: Array.isArray(parsed.cards) ? parsed.cards : (Array.isArray(cards) ? cards : []),
+    note: parsed.note || note,
+  };
 }
 
 function shortDayLabel(value) {
@@ -823,15 +865,18 @@ export function MemberDashboardPage() {
         return data;
       })
       .then((data) => {
-        setAiMessages(Array.isArray(data) ? data.map((message) => ({
-          id: message.id,
-          role: message.role,
-          title: message.title || undefined,
-          body: message.body,
-          cards: Array.isArray(message.cards) ? message.cards : [],
-          quote: message.note || '',
-          time: message.role === 'user' ? formatMealTime(message.created_at) : undefined,
-        })) : []);
+        setAiMessages(Array.isArray(data) ? data.map((message) => {
+          const content = normalizeAiContent(message.body, message.cards, message.note);
+          return {
+            id: message.id,
+            role: message.role,
+            title: message.title || undefined,
+            body: content.body,
+            cards: content.cards,
+            quote: content.note,
+            time: message.role === 'user' ? formatMealTime(message.created_at) : undefined,
+          };
+        }) : []);
       })
       .catch(() => setAiMessages([]));
   }, [user?.id]);
@@ -1454,13 +1499,14 @@ export function MemberDashboardPage() {
       });
       const data = await parseResponse(response);
       if (!response.ok) throw new Error(data.detail || 'AI Assistant is unavailable.');
+      const content = normalizeAiContent(data.reply, data.cards, data.note);
       setAiMessages((current) => [...current, {
         id: data.id || crypto.randomUUID(),
         role: 'assistant',
         title: 'Assistant Recommendation',
-        body: data.reply,
-        cards: Array.isArray(data.cards) ? data.cards : [],
-        quote: data.note || '',
+        body: content.body,
+        cards: content.cards,
+        quote: content.note,
       }]);
     } catch (error) {
       setAiMessages((current) => [...current, {
@@ -1676,7 +1722,7 @@ export function MemberDashboardPage() {
                       {resolveMediaUrl(meal.photo_url || meal.meal_photo) ? (
                         <img alt="" className="meal-thumb" src={resolveMediaUrl(meal.photo_url || meal.meal_photo)} />
                       ) : (
-                        <span className="material-symbols-outlined meal-icon">restaurant</span>
+                        <span className="material-symbols-outlined meal-icon meal-photo-placeholder">restaurant</span>
                       )}
                       <div className="meal-name">
                         <strong>{formatMealType(meal.meal_type)}</strong>
@@ -1889,8 +1935,8 @@ export function MemberDashboardPage() {
                       <div className="class-item" key={id || item.title}>
                         <div className="class-info-wrap">
                           <div className="class-time">
-                            <strong>{formatClassTime(item.schedule_time || item.starts_at || item.date)}</strong>
-                            <span>{formatClassDay(item.schedule_time || item.starts_at || item.date)}</span>
+                            <strong>{formatClassDay(item.schedule_time || item.starts_at || item.date)}</strong>
+                            <span>{formatClassTime(item.schedule_time || item.starts_at || item.date)}</span>
                           </div>
                           <div className="class-details">
                             <h4>{item.title}</h4>
@@ -2044,6 +2090,42 @@ export function MemberDashboardPage() {
             </div>
           </section>
 
+          <section className="fade delay-3 overview-fuel-strip">
+            <article className="card overview-fuel-card">
+              <span className="overview-fuel-icon protein" aria-hidden="true">🥩</span>
+              <div>
+                <span className="label">Protein</span>
+                <strong>{Math.round(nutrition.protein)}g <small>/ {PROTEIN_GOAL}g</small></strong>
+              </div>
+              <div className="overview-fuel-meter">
+                <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, PROTEIN_GOAL)}%` }} /></div>
+                <span>{pct(nutrition.protein, PROTEIN_GOAL)}% complete</span>
+              </div>
+            </article>
+            <article className="card overview-fuel-card">
+              <span className="material-symbols-outlined overview-fuel-icon carbs">bakery_dining</span>
+              <div>
+                <span className="label">Carbs</span>
+                <strong>{Math.round(nutrition.carbs)}g <small>/ {CARBS_GOAL}g</small></strong>
+              </div>
+              <div className="overview-fuel-meter">
+                <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, CARBS_GOAL)}%` }} /></div>
+                <span>{pct(nutrition.carbs, CARBS_GOAL)}% complete</span>
+              </div>
+            </article>
+            <article className="card overview-fuel-card">
+              <span className="material-symbols-outlined overview-fuel-icon fats">water_drop</span>
+              <div>
+                <span className="label">Fats</span>
+                <strong>{Math.round(nutrition.fats)}g <small>/ {FATS_GOAL}g</small></strong>
+              </div>
+              <div className="overview-fuel-meter">
+                <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, FATS_GOAL)}%` }} /></div>
+                <span>{pct(nutrition.fats, FATS_GOAL)}% complete</span>
+              </div>
+            </article>
+          </section>
+
           <section className="fade delay-3 nutrition-shell">
             <div className="section-header">
               <h2 className="section-title">Today's Nutrition</h2>
@@ -2191,8 +2273,8 @@ export function MemberDashboardPage() {
                         <div className="class-item class-tab-item" key={id || item.title}>
                           <div className="class-info-wrap">
                             <div className="class-time">
-                              <strong>{formatClassTime(item.schedule_time || item.starts_at || item.date)}</strong>
-                              <span>{formatClassDay(item.schedule_time || item.starts_at || item.date)}</span>
+                              <strong>{formatClassDay(item.schedule_time || item.starts_at || item.date)}</strong>
+                              <span>{formatClassTime(item.schedule_time || item.starts_at || item.date)}</span>
                             </div>
                             <div className="class-details">
                               <h4>{item.title}</h4>
@@ -2229,8 +2311,8 @@ export function MemberDashboardPage() {
                       <div className="class-item class-tab-item" key={item.booking_id || item.id}>
                         <div className="class-info-wrap">
                           <div className="class-time">
-                            <strong>{formatClassTime(item.schedule_time)}</strong>
-                            <span>{formatClassDay(item.schedule_time)}</span>
+                            <strong>{formatClassDay(item.schedule_time)}</strong>
+                            <span>{formatClassTime(item.schedule_time)}</span>
                           </div>
                           <div className="class-details">
                             <h4>{item.title}</h4>
@@ -2565,6 +2647,16 @@ export function MemberDashboardPage() {
                                   <span>{card.label || card.title}</span>
                                   <strong>{card.title || card.body}</strong>
                                   {card.detail ? <p>{card.detail}</p> : null}
+                                  {Array.isArray(card.macros) ? (
+                                    <div className="ai-mini-macros">
+                                      {card.macros.map((macro) => (
+                                        <div key={`${macro.label}-${macro.value}`}>
+                                          <strong>{macro.value}</strong>
+                                          <small>{macro.label}</small>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                 </div>
                               ))}
                             </div>

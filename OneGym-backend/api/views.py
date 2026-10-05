@@ -24,6 +24,7 @@ import re
 import secrets
 
 from .models import PasswordResetCode
+from .db_compat import get_last_insert_id
 from .serializers import (
     ClassBookingSerializer,
     ExerciseSerializer,
@@ -493,7 +494,7 @@ def save_ai_chat_message(user_id, role, body, title=None, cards=None, note=''):
             INSERT INTO ai_chat_messages
                 (user_id, role, title, body, cards, note, created_at)
             VALUES
-                (%s, %s, %s, %s, %s, %s, NOW(6))
+                (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             ''',
             [
                 user_id,
@@ -504,7 +505,7 @@ def save_ai_chat_message(user_id, role, body, title=None, cards=None, note=''):
                 note or None,
             ],
         )
-        return cursor.lastrowid
+        return get_last_insert_id(cursor)
 
 
 def serialize_ai_chat_row(row):
@@ -672,7 +673,7 @@ def user_trainer_chat_messages(request, user_id):
         cursor.execute(
             '''
             UPDATE trainer_chat_messages
-            SET read_at = NOW(6)
+            SET read_at = CURRENT_TIMESTAMP
             WHERE recipient_id = %s
                 AND sender_id = %s
                 AND read_at IS NULL
@@ -770,11 +771,11 @@ def trainer_chat_message(request):
         cursor.execute(
             '''
             INSERT INTO trainer_chat_messages (sender_id, recipient_id, body, created_at)
-            VALUES (%s, %s, %s, NOW(6))
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
             ''',
             [actor['id'], recipient_id, body],
         )
-        message_id = cursor.lastrowid
+        message_id = get_last_insert_id(cursor)
 
         cursor.execute(
             '''
@@ -1085,7 +1086,7 @@ def trainer_applications(request):
                     created_at
                 )
             VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', NOW(6))
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', CURRENT_TIMESTAMP)
             ''',
             [
                 user_id,
@@ -1099,7 +1100,7 @@ def trainer_applications(request):
                 data.get('bio') or None,
             ],
         )
-        application_id = cursor.lastrowid
+        application_id = get_last_insert_id(cursor)
 
     return Response(
         {
@@ -1138,7 +1139,7 @@ def review_trainer_application(request, application_id):
         cursor.execute(
             '''
             UPDATE trainer_applications
-            SET status = %s, reviewed_by = %s, reviewed_at = NOW(6)
+            SET status = %s, reviewed_by = %s, reviewed_at = CURRENT_TIMESTAMP
             WHERE id = %s
             ''',
             [review_status, reviewer_id, application_id],
@@ -1274,7 +1275,7 @@ def upsert_user_subscription(user_id, plan_code, stripe_object, subscription_sta
                     stripe_customer_id = COALESCE(%s, stripe_customer_id),
                     stripe_subscription_id = COALESCE(%s, stripe_subscription_id),
                     stripe_payment_link_id = COALESCE(%s, stripe_payment_link_id),
-                    current_period_start = COALESCE(current_period_start, NOW(6)),
+                    current_period_start = COALESCE(current_period_start, CURRENT_TIMESTAMP),
                     current_period_end = NULL,
                     canceled_at = NULL
                 WHERE id = %s
@@ -1294,7 +1295,7 @@ def upsert_user_subscription(user_id, plan_code, stripe_object, subscription_sta
                 INSERT INTO user_subscriptions
                     (user_id, plan_id, status, stripe_customer_id, stripe_subscription_id, stripe_payment_link_id, current_period_start, created_at, updated_at)
                 VALUES
-                    (%s, %s, %s, %s, %s, %s, NOW(6), NOW(6), NOW(6))
+                    (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ''',
                 [
                     user_id,
@@ -1333,7 +1334,7 @@ def cancel_user_subscription_by_stripe_id(stripe_subscription_id):
             UPDATE user_subscriptions
             SET plan_id = %s,
                 status = 'canceled',
-                canceled_at = NOW(6)
+                canceled_at = CURRENT_TIMESTAMP
             WHERE stripe_subscription_id = %s
             ''',
             [free_plan[0], stripe_subscription_id],
@@ -1382,7 +1383,7 @@ def stripe_webhook(request):
                 INSERT INTO payment_events
                     (user_id, stripe_event_id, event_type, payload_json, created_at)
                 VALUES
-                    (%s, %s, %s, %s, NOW(6))
+                    (%s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ''',
                 [user_id, event_id, event_type, json.dumps(event)],
             )
@@ -1675,10 +1676,10 @@ def create_personal_record(request):
                 cursor.execute('UPDATE exercises SET category = COALESCE(category, %s), default_unit = COALESCE(default_unit, %s) WHERE id = %s', [category, unit, exercise_id])
         else:
             cursor.execute(
-                'INSERT INTO exercises (name, category, default_unit, created_at) VALUES (%s, %s, %s, NOW(6))',
+                'INSERT INTO exercises (name, category, default_unit, created_at) VALUES (%s, %s, %s, CURRENT_TIMESTAMP)',
                 [exercise_name, category, unit],
             )
-            exercise_id = cursor.lastrowid
+            exercise_id = get_last_insert_id(cursor)
 
         cursor.execute(
             '''
@@ -1701,7 +1702,7 @@ def create_personal_record(request):
             INSERT INTO personal_records
                 (user_id, exercise_id, record_type, value, unit, recorded_at, notes, status, is_verified, verification_reason, proof_url, proof_file_name, created_at)
             VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(6))
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             ''',
             [
                 data['user_id'],
@@ -1718,7 +1719,7 @@ def create_personal_record(request):
                 proof_file_name,
             ],
         )
-        record_id = cursor.lastrowid
+        record_id = get_last_insert_id(cursor)
 
         cursor.execute(
             '''
@@ -2091,7 +2092,7 @@ def class_list(request):
                     data['slots'],
                 ],
             )
-            class_id = cursor.lastrowid
+            class_id = get_last_insert_id(cursor)
 
         return Response(
             {
@@ -2169,7 +2170,7 @@ def book_class(request, class_id):
             return Response({'detail': 'You already booked this class.'}, status=status.HTTP_400_BAD_REQUEST)
 
         cursor.execute(
-            'INSERT INTO class_bookings (user_id, class_id, booked_at) VALUES (%s, %s, NOW(6))',
+            'INSERT INTO class_bookings (user_id, class_id, booked_at) VALUES (%s, %s, CURRENT_TIMESTAMP)',
             [user_id, class_id],
         )
 
@@ -2300,7 +2301,7 @@ def create_workout(request):
                 INSERT INTO workouts
                     (user_id, name, duration_minutes, intensity, calories_burned, workout_date, notes, created_at)
                 VALUES
-                    (%s, %s, %s, %s, %s, %s, %s, NOW(6))
+                    (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ''',
                 [
                     data['user_id'],
@@ -2312,7 +2313,7 @@ def create_workout(request):
                     notes,
                 ],
             )
-            workout_id = cursor.lastrowid
+            workout_id = get_last_insert_id(cursor)
 
             for exercise in data['exercises']:
                 cursor.execute(
@@ -2320,7 +2321,7 @@ def create_workout(request):
                     INSERT INTO workout_exercises
                         (workout_id, exercise_name, sets, reps, weight, created_at)
                     VALUES
-                        (%s, %s, %s, %s, %s, NOW(6))
+                        (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ''',
                     [
                         workout_id,
@@ -2549,7 +2550,7 @@ def create_meal(request):
             INSERT INTO meals
                 (user_id, meal_type, description, calories, protein_g, carbs_g, fats_g, photo_url, meal_date, created_at)
             VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(6))
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             ''',
             [
                 data['user_id'],
@@ -2563,7 +2564,7 @@ def create_meal(request):
                 meal_date,
             ],
         )
-        meal_id = cursor.lastrowid
+        meal_id = get_last_insert_id(cursor)
 
     return Response(
         {
@@ -2685,7 +2686,7 @@ def create_auth_token(user_id):
         cursor.execute(
             '''
             INSERT INTO auth_tokens (user_id, token_hash, expires_at, created_at)
-            VALUES (%s, %s, %s, NOW(6))
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
             ''',
             [user_id, hash_token(token), expires_at],
         )
@@ -2694,6 +2695,8 @@ def create_auth_token(user_id):
 
 
 def build_auth_response(user, response_status=status.HTTP_200_OK):
+    user = dict(user)
+    user['role'] = str(user.get('role') or 'member').lower()
     token = create_auth_token(user['id'])
     response = Response({'user': user}, status=response_status)
     response.set_cookie(
@@ -2720,11 +2723,11 @@ def get_authenticated_user(request):
     with connection.cursor() as cursor:
         cursor.execute(
             '''
-            SELECT u.id, u.username, u.email, u.role, u.created_at
+            SELECT u.id, u.username, u.email, LOWER(u.role), u.created_at, u.is_active
             FROM auth_tokens t
             INNER JOIN users u ON u.id = t.user_id
             WHERE t.token_hash = %s
-                AND t.expires_at > NOW(6)
+                AND t.expires_at > CURRENT_TIMESTAMP
                 AND t.revoked_at IS NULL
             LIMIT 1
             ''',
@@ -2735,7 +2738,9 @@ def get_authenticated_user(request):
     if not row:
         return None
 
-    user_id, username, email, role, created_at = row
+    user_id, username, email, role, created_at, is_active = row
+    if not is_active:
+        return None
     return {
         'id': user_id,
         'username': username,
@@ -2751,7 +2756,7 @@ def sign_out(request):
     if token:
         with connection.cursor() as cursor:
             cursor.execute(
-                'UPDATE auth_tokens SET revoked_at = NOW(6) WHERE token_hash = %s',
+                'UPDATE auth_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE token_hash = %s',
                 [hash_token(token)],
             )
 
@@ -2804,7 +2809,7 @@ def get_or_create_social_user(email, preferred_name=''):
             'INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)',
             [username, normalized_email, make_password(secrets.token_urlsafe(32)), 'member'],
         )
-        user_id = cursor.lastrowid
+        user_id = get_last_insert_id(cursor)
         cursor.execute('SELECT created_at FROM users WHERE id = %s LIMIT 1', [user_id])
         created_at = cursor.fetchone()[0]
 
@@ -2883,7 +2888,7 @@ def sign_up(request):
             'INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)',
             [username, email, make_password(password), role],
         )
-        user_id = cursor.lastrowid
+        user_id = get_last_insert_id(cursor)
         cursor.execute('SELECT created_at FROM users WHERE id = %s LIMIT 1', [user_id])
         created_at = cursor.fetchone()[0]
 
@@ -2909,7 +2914,7 @@ def sign_in(request):
 
     with connection.cursor() as cursor:
         cursor.execute(
-            'SELECT id, username, email, password, role, created_at FROM users WHERE email = %s LIMIT 1',
+            'SELECT id, username, email, password, LOWER(role), created_at, is_active FROM users WHERE email = %s LIMIT 1',
             [email],
         )
         row = cursor.fetchone()
@@ -2920,7 +2925,12 @@ def sign_in(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    user_id, username, user_email, stored_password, role, created_at = row
+    user_id, username, user_email, stored_password, role, created_at, is_active = row
+    if not is_active:
+        return Response(
+            {'detail': 'This account has been deactivated.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     if not password_matches(password, stored_password):
         return Response(
             {'detail': 'Invalid email or password.'},

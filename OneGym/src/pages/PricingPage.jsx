@@ -10,9 +10,10 @@ const stripeLinks = {
   studio: import.meta.env.VITE_STRIPE_STUDIO_PAYMENT_LINK,
 };
 
-const tiers = [
+const tierTemplates = [
   {
     name: 'Free',
+    databaseCode: 'free',
     planKey: 'member',
     price: 'RM 0',
     period: 'forever',
@@ -28,6 +29,7 @@ const tiers = [
   },
   {
     name: 'Pro',
+    databaseCode: 'pro',
     planKey: 'pro',
     price: 'RM 29',
     period: 'per month',
@@ -46,6 +48,7 @@ const tiers = [
   },
   {
     name: 'Studio',
+    databaseCode: 'studio',
     planKey: 'studio',
     price: 'RM 99',
     period: 'per month',
@@ -64,11 +67,45 @@ const tiers = [
 ];
 
 const comparison = [
-  ['Member tracking', 'Basic', 'Advanced', 'Team-wide'],
-  ['AI nutrition', 'Limited', 'Included', 'Included'],
-  ['Trainer tools', '-', 'Chat access', 'Dashboard + classes'],
-  ['Progress analytics', '-', 'Included', 'Included'],
+  { label: 'Member tracking', free: 'Basic', pro: 'Advanced', studio: 'Team-wide' },
+  { label: 'AI nutrition', free: 'Limited', pro: 'Included', studio: 'Included' },
+  { label: 'Trainer tools', free: '-', pro: 'Chat access', studio: 'Dashboard + classes' },
+  { label: 'Progress analytics', free: '-', pro: 'Included', studio: 'Included' },
 ];
+
+function formatPlanPrice(plan) {
+  const amount = Number(plan.price_cents || 0) / 100;
+  try {
+    return new Intl.NumberFormat('en-MY', {
+      style: 'currency',
+      currency: String(plan.currency || 'MYR').toUpperCase(),
+      maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    }).format(amount);
+  } catch {
+    return `RM ${amount.toFixed(amount % 1 === 0 ? 0 : 2)}`;
+  }
+}
+
+function pricingTierForPlan(plan) {
+  const databaseCode = String(plan.code || '').toLowerCase();
+  const template = tierTemplates.find((tier) => tier.databaseCode === databaseCode);
+  const genericTier = {
+    databaseCode,
+    planKey: databaseCode,
+    description: `OneGym ${plan.name || databaseCode} membership plan.`,
+    cta: `Choose ${plan.name || 'plan'}`,
+    href: '/signin',
+    features: ['Member dashboard', 'Class booking access', 'Workout and progress tracking'],
+  };
+
+  return {
+    ...(template || genericTier),
+    name: plan.name || template?.name || databaseCode,
+    databaseCode,
+    price: formatPlanPrice(plan),
+    period: Number(plan.price_cents || 0) === 0 ? 'forever' : 'per month',
+  };
+}
 
 function getStoredUser() {
   try {
@@ -86,7 +123,31 @@ function getUserPlan(user) {
 
 export function PricingPage() {
   const [user, setUser] = useState(() => getStoredUser());
+  const [activePlans, setActivePlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansError, setPlansError] = useState('');
   const currentPlan = useMemo(() => getUserPlan(user), [user]);
+  const visibleTiers = useMemo(() => activePlans.map(pricingTierForPlan), [activePlans]);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch(`${API_BASE_URL}/plans/`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => []);
+        if (!response.ok || !Array.isArray(data)) throw new Error('Unable to load available plans.');
+        if (isMounted) setActivePlans(data);
+      })
+      .catch((error) => {
+        if (isMounted) setPlansError(error.message || 'Unable to load available plans.');
+      })
+      .finally(() => {
+        if (isMounted) setPlansLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -137,8 +198,12 @@ export function PricingPage() {
           <p>Start light, upgrade when your tracking gets serious, or bring the full studio workflow online.</p>
         </section>
 
-        <section className="pricing-grid" aria-label="OneGym pricing tiers">
-          {tiers.map((tier) => {
+        {plansLoading ? <div className="pricing-plan-state">Loading available plans…</div> : null}
+        {!plansLoading && plansError ? <div className="pricing-plan-state error">{plansError}</div> : null}
+        {!plansLoading && !plansError && !visibleTiers.length ? <div className="pricing-plan-state">No membership plans are currently available.</div> : null}
+
+        {!plansLoading && !plansError && visibleTiers.length ? <section className="pricing-grid" aria-label="OneGym pricing tiers">
+          {visibleTiers.map((tier) => {
             const isCurrentPlan = currentPlan === tier.planKey;
             return (
             <article className={`pricing-card ${tier.featured ? 'featured' : ''} ${isCurrentPlan ? 'current' : ''}`} key={tier.name}>
@@ -176,27 +241,26 @@ export function PricingPage() {
             </article>
           );
           })}
-        </section>
+        </section> : null}
 
-        <section className="pricing-compare">
+        {!plansLoading && !plansError && visibleTiers.length ? <section className="pricing-compare">
           <div className="pricing-compare-heading">
             <p className="pricing-kicker">Compare</p>
             <h2>What changes when you upgrade</h2>
           </div>
           <div className="compare-table">
-            <div className="compare-row compare-head">
+            <div className="compare-row compare-head" style={{ gridTemplateColumns: `minmax(180px, 1.4fr) repeat(${visibleTiers.length}, minmax(120px, 1fr))` }}>
               <span>Feature</span>
-              <span>Free</span>
-              <span>Pro</span>
-              <span>Studio</span>
+              {visibleTiers.map((tier) => <span key={tier.databaseCode}>{tier.name}</span>)}
             </div>
             {comparison.map((row) => (
-              <div className="compare-row" key={row[0]}>
-                {row.map((cell) => <span key={cell}>{cell}</span>)}
+              <div className="compare-row" key={row.label} style={{ gridTemplateColumns: `minmax(180px, 1.4fr) repeat(${visibleTiers.length}, minmax(120px, 1fr))` }}>
+                <span>{row.label}</span>
+                {visibleTiers.map((tier) => <span key={tier.databaseCode}>{row[tier.databaseCode] || 'Included'}</span>)}
               </div>
             ))}
           </div>
-        </section>
+        </section> : null}
       </main>
       <Footer />
     </>

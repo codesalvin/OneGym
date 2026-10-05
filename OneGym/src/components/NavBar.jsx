@@ -1,15 +1,52 @@
 import { useEffect, useMemo, useState } from 'react';
 import './NavBar.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.DEV
+  ? '/api'
+  : (import.meta.env.VITE_API_BASE_URL || '/api');
+
+const FEATURE_GROUPS = {
+  member: {
+    title: 'For Members',
+    description: 'Track your personal fitness journey in one place.',
+    items: [
+      ['Fitness Dashboard', 'Integrated workout tracking and biometric progress.', '/member-dashboard'],
+      ['AI Diet Plan', 'Automated meal suggestions based on goals.', '/member-dashboard?tab=ai'],
+      ['Class Bookings', 'Real-time class registration and PT scheduling.', '/member-dashboard?tab=classes'],
+    ],
+  },
+  trainer: {
+    title: 'For Trainers',
+    description: 'Digital tools to connect and manage your clients.',
+    items: [
+      ['Trainer Dashboard', 'See your coaching work and upcoming sessions.', '/trainer-dashboard'],
+      ['Client Manager', 'Monitor member activity and progress.', '/trainer-dashboard?tab=clients'],
+      ['Schedule Sync', 'Manage your professional calendar seamlessly.', '/trainer-dashboard?tab=schedule'],
+    ],
+  },
+  admin: {
+    title: 'For Admins',
+    description: 'Streamline facility management and insights.',
+    items: [
+      ['Operations Overview', 'High level view of gym and business analytics.', '/admin'],
+      ['User Management', 'Manage member, trainer, and staff access.', '/admin?tab=users'],
+      ['Payments', 'Review memberships, renewals, and billing.', '/admin?tab=payments'],
+    ],
+  },
+};
 
 export function NavBar() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
     function readStoredUser() {
-      const storedUser = localStorage.getItem('onegymUser');
-      setUser(storedUser ? JSON.parse(storedUser) : null);
+      try {
+        const storedUser = localStorage.getItem('onegymUser');
+        setUser(storedUser ? JSON.parse(storedUser) : null);
+      } catch {
+        localStorage.removeItem('onegymUser');
+        setUser(null);
+      }
     }
 
     readStoredUser();
@@ -35,10 +72,19 @@ export function NavBar() {
       .map((part) => part[0].toUpperCase())
       .join('');
   }, [user]);
-  const dashboardHref = user?.role === 'trainer' ? '/trainer-dashboard' : '/member-dashboard';
-  const dashboardLabel = user?.role === 'trainer' ? 'Trainer Portal' : 'Dashboard';
-  const isTrainer = user?.role === 'trainer';
+  const normalizedRole = String(user?.role || '').toLowerCase();
+  const isAdmin = ['admin', 'owner'].includes(normalizedRole);
+  const isTrainer = normalizedRole === 'trainer';
+  const dashboardHref = isAdmin ? '/admin' : isTrainer ? '/trainer-dashboard' : '/member-dashboard';
+  const dashboardLabel = isAdmin ? 'Admin Portal' : isTrainer ? 'Trainer Portal' : 'Dashboard';
   const profilePhotoUrl = user?.profile_photo_url || '';
+  const visibleFeatureGroups = !user
+    ? [FEATURE_GROUPS.member, FEATURE_GROUPS.trainer, FEATURE_GROUPS.admin]
+    : isAdmin
+      ? [FEATURE_GROUPS.admin]
+      : isTrainer
+        ? [FEATURE_GROUPS.trainer]
+        : [FEATURE_GROUPS.member];
 
   async function handleLogout() {
     try {
@@ -64,58 +110,19 @@ export function NavBar() {
           {/* Features Dropdown Item */}
           <li className="nav-dropdown">
             <a href="#" className="nav-dropdown-trigger">Features</a>
-            <div className="nav-dropdown-menu">
-              
-              {/* Column 1: Members */}
-              <div className="mega-col">
-                <h4>For Members</h4>
-                <p>Track your personal fitness journey in one place.</p>
-                <a href="/member-dashboard" className="mega-item">
-                  <span>Fitness Dashboard</span>
-                  <small>Integrated workout tracking and biometric progress.</small>
-                </a>
-                <a href="/member-dashboard" className="mega-item">
-                  <span>AI Diet Plan</span>
-                  <small>Automated meal suggestions based on goals.</small>
-                </a>
-                <a href="/member-dashboard" className="mega-item">
-                  <span>Class Bookings</span>
-                  <small>Real-time class registration and PT scheduling.</small>
-                </a>
-              </div>
-
-              {/* Column 2: Trainers */}
-              <div className="mega-col">
-                <h4>For Trainers</h4>
-                <p>Digital tools to connect and manage your clients.</p>
-                <a href="/trainer-dashboard" className="mega-item">
-                  <span>Client Manager</span>
-                  <small>CRM-style interface to monitor client progress.</small>
-                </a>
-                <a href="/trainer-dashboard" className="mega-item">
-                  <span>Schedule Sync</span>
-                  <small>Manage your professional calendar seamlessly.</small>
-                </a>
-                <a href="/join-trainer" className="mega-item">
-                  <span>Join as Trainer</span>
-                  <small>Apply for approval with your certification document.</small>
-                </a>
-              </div>
-
-              {/* Column 3: Admins */}
-              <div className="mega-col">
-                <h4>For Admins</h4>
-                <p>Streamline facility management and insights.</p>
-                <a href="#" className="mega-item">
-                  <span>Operations Overview</span>
-                  <small>High level view of gym and business analytics.</small>
-                </a>
-                <a href="#" className="mega-item">
-                  <span>Payment Gateway</span>
-                  <small>Automated membership renewals and billing.</small>
-                </a>
-              </div>
-
+            <div className={`nav-dropdown-menu feature-columns-${visibleFeatureGroups.length}`}>
+              {visibleFeatureGroups.map((group) => (
+                <div className="mega-col" key={group.title}>
+                  <h4>{group.title}</h4>
+                  <p>{group.description}</p>
+                  {group.items.map(([label, description, href]) => (
+                    <a href={href} className="mega-item" key={label}>
+                      <span>{label}</span>
+                      <small>{description}</small>
+                    </a>
+                  ))}
+                </div>
+              ))}
             </div>
           </li>
           
@@ -139,12 +146,12 @@ export function NavBar() {
                 </div>
               </div>
               <a href={dashboardHref}>{dashboardLabel}</a>
-              {!isTrainer && <a href="/member-dashboard?tab=classes">Classes</a>}
-              {!isTrainer && <a href="/member-dashboard?tab=trainer-chat">Trainer Chat</a>}
-              {!isTrainer && <a href="/member-dashboard?tab=ai">AI Assistant</a>}
-              <a href="/member-dashboard?tab=profile">Profile</a>
-              <a href="#">Settings</a>
-              {!isTrainer && <a href="#">Membership</a>}
+              {!isTrainer && !isAdmin && <a href="/member-dashboard?tab=classes">Classes</a>}
+              {!isTrainer && !isAdmin && <a href="/member-dashboard?tab=trainer-chat">Trainer Chat</a>}
+              {!isTrainer && !isAdmin && <a href="/member-dashboard?tab=ai">AI Assistant</a>}
+              {!isAdmin && <a href="/member-dashboard?tab=profile">Profile</a>}
+              {!isAdmin && <a href="#">Settings</a>}
+              {!isTrainer && !isAdmin && <a href="#">Membership</a>}
               <button type="button" onClick={handleLogout}>Logout</button>
             </div>
           </div>

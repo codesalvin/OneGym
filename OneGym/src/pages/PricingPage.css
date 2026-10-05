@@ -37,6 +37,24 @@
   max-width: 650px;
 }
 
+.pricing-plan-state {
+  background: #fbfaf7;
+  border: 1px solid #dedbd4;
+  border-radius: 18px;
+  color: #555;
+  font-size: 15px;
+  margin: 0 auto;
+  max-width: 760px;
+  padding: 28px;
+  text-align: center;
+}
+
+.pricing-plan-state.error {
+  background: #fff5f5;
+  border-color: #f2c7c7;
+  color: #9f2929;
+}
+
 .pricing-grid {
   display: grid;
   gap: 18px;

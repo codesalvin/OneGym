@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import './SignInPage.css';
 
 const heroImage = '../images/login.jpg';
   
 const logoImage = '../images/logo.png';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.DEV
+  ? '/api'
+  : (import.meta.env.VITE_API_BASE_URL || '/api');
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function getDashboardPath(user) {
-  return user?.role === 'trainer' ? '/trainer-dashboard' : '/member-dashboard';
+  const role = String(user?.role || '').toLowerCase();
+  if (role === 'admin' || role === 'owner') return '/admin';
+  return role === 'trainer' ? '/trainer-dashboard' : '/member-dashboard';
 }
 
 async function parseResponseBody(response) {
@@ -63,6 +67,7 @@ function loadScript(src, id) {
 
 export function SignInPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const googleTokenClientRef = useRef(null);
   const [activeForm, setActiveForm] = useState('login');
   const [loginForm, setLoginForm] = useState({
@@ -86,6 +91,14 @@ export function SignInPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isLogin = activeForm === 'login';
   const isReset = activeForm === 'reset';
+
+  useEffect(() => {
+    const reason = new URLSearchParams(location.search).get('reason');
+    if (reason === 'session-expired') {
+      setIsError(true);
+      setMessage('Your session expired. Please sign in again.');
+    }
+  }, [location.search]);
 
   function updateFormField(setForm, event) {
     const { name, value } = event.target;

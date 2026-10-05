@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './TrainerDashboard.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.DEV
+  ? '/api'
+  : (import.meta.env.VITE_API_BASE_URL || '/api');
 const CLIENT_PROGRESS_TARGET = 12;
 const REFRESH_INTERVAL_MS = 15000;
 const MEMBER_SIDE_ROLES = new Set(['member', 'pro', 'studio']);
@@ -20,6 +22,13 @@ const programs = [
 ];
 
 async function readApiResponse(response) {
+  if (response.status === 401) {
+    localStorage.removeItem('onegymAuthToken');
+    localStorage.removeItem('onegymUser');
+    window.dispatchEvent(new Event('onegym-auth-change'));
+    window.location.replace('/signin?reason=session-expired');
+  }
+
   const text = await response.text();
   if (!text) {
     return null;
@@ -68,6 +77,17 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function formatMessageTime(value) {
+  if (!value) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
 function isThisWeek(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -105,12 +125,44 @@ function getRecentWorkoutCount(workouts) {
   return workouts.filter((workout) => getWorkoutDate(workout) >= cutoff).length;
 }
 
+function getWorkoutMinutes(workouts) {
+  return workouts.reduce((total, workout) => total + Number(workout.duration_minutes || workout.duration || 0), 0);
+}
+
+function getLatestWorkout(workouts) {
+  return [...workouts].sort((a, b) => getWorkoutDate(b) - getWorkoutDate(a))[0];
+}
+
+function formatMetric(value, suffix = '') {
+  if (value === null || value === undefined || value === '') {
+    return '--';
+  }
+
+  const number = Number(value);
+  return Number.isNaN(number) ? `${value}${suffix}` : `${number.toLocaleString()}${suffix}`;
+}
+
+function getClassHours(item) {
+  const minutes = Number(item.duration_minutes || item.duration || 0);
+  return minutes > 0 ? minutes / 60 : 1;
+}
+
 export function TrainerDashboardPage() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return ['overview', 'schedule', 'clients', 'progress', 'programs', 'messages'].includes(tab) ? tab : 'overview';
+  });
+  const [isNavOpen, setIsNavOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [classes, setClasses] = useState([]);
   const [applications, setApplications] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [selectedConversationId, setSelectedConversationId] = useState('');
+  const [conversationMessages, setConversationMessages] = useState([]);
+  const [messageInput, setMessageInput] = useState('');
+  const [messageStatus, setMessageStatus] = useState('');
+  const [isMessageError, setIsMessageError] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [clientWorkouts, setClientWorkouts] = useState({});
   const [dashboardMessage, setDashboardMessage] = useState('');
   const [classForm, setClassForm] = useState(emptyClassForm);
@@ -123,7 +175,9 @@ export function TrainerDashboardPage() {
     const user = getStoredUser();
     return user.username || user.email?.split('@')[0] || 'Trainer';
   }, []);
+  const storedTrainer = useMemo(() => getStoredUser() || {}, []);
   const trainerInitials = useMemo(() => getInitials(getStoredUser() || { username: trainerName }), [trainerName]);
+  const messageScrollRef = useRef(null);
 
   async function loadDashboardData() {
     try {
@@ -131,9 +185,9 @@ export function TrainerDashboardPage() {
         credentials: 'include',
       });
       const [usersResponse, classesResponse, applicationsResponse, conversationsResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/users/`),
-        fetch(`${API_BASE_URL}/classes/`),
-        fetch(`${API_BASE_URL}/trainer-applications/?status=pending`),
+        fetch(`${API_BASE_URL}/users/`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/classes/`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/trainer-applications/?status=pending`, { credentials: 'include' }),
         conversationRequest,
       ]);
 
@@ -161,7 +215,9 @@ export function TrainerDashboardPage() {
       const workoutPairs = await Promise.all(
         memberUsers.slice(0, 12).map(async (member) => {
           try {
-            const response = await fetch(`${API_BASE_URL}/users/${member.id}/workouts/?limit=all`);
+            const response = await fetch(`${API_BASE_URL}/users/${member.id}/workouts/?limit=all`, {
+              credentials: 'include',
+            });
             const data = await readApiResponse(response);
             return [member.id, response.ok && Array.isArray(data) ? data : []];
           } catch {
@@ -188,6 +244,105 @@ export function TrainerDashboardPage() {
 
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!selectedConversationId && conversations.length) {
+      setSelectedConversationId(String(conversations[0].user_id));
+    }
+  }, [conversations, selectedConversationId]);
+
+  useEffect(() => {
+    if (selectedConversationId) {
+      loadConversationMessages(selectedConversationId);
+    } else {
+      setConversationMessages([]);
+    }
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    messageScrollRef.current?.scrollTo({
+      top: messageScrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [conversationMessages.length]);
+
+  function openTrainerTab(tabId) {
+    setActiveTab(tabId);
+    setIsNavOpen(false);
+  }
+
+  async function loadConversationMessages(memberId = selectedConversationId) {
+    if (!storedTrainer?.id || !memberId) {
+      setConversationMessages([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${memberId}/trainer-messages/?trainer_id=${storedTrainer.id}`, {
+        credentials: 'include',
+      });
+      const data = await readApiResponse(response);
+
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Unable to load trainer chat.');
+      }
+
+      setConversationMessages(Array.isArray(data) ? data : []);
+      setIsMessageError(false);
+      setMessageStatus('');
+    } catch (error) {
+      setConversationMessages([]);
+      setIsMessageError(true);
+      setMessageStatus(error.message);
+    }
+  }
+
+  async function sendTrainerMessage(event) {
+    event.preventDefault();
+
+    const body = messageInput.trim();
+    if (!body || isSendingMessage) {
+      return;
+    }
+    if (!selectedConversationId) {
+      setIsMessageError(true);
+      setMessageStatus('Choose a member before sending a message.');
+      return;
+    }
+
+    setIsSendingMessage(true);
+    setMessageInput('');
+    setIsMessageError(false);
+    setMessageStatus('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/trainer-chat/messages/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipient_id: selectedConversationId,
+          body,
+        }),
+      });
+      const data = await readApiResponse(response);
+
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Unable to send message.');
+      }
+
+      setConversationMessages((current) => [...current, data]);
+      await loadDashboardData();
+    } catch (error) {
+      setIsMessageError(true);
+      setMessageStatus(error.message);
+      setMessageInput(body);
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }
 
   function updateClassField(event) {
     const { name, value } = event.target;
@@ -241,17 +396,25 @@ export function TrainerDashboardPage() {
   const todayClasses = useMemo(() => classes.filter((item) => isToday(item.schedule_time)).slice(0, 5), [classes]);
 
   const clientCards = useMemo(() => {
-    return memberUsers.slice(0, 4).map((member) => {
+    return memberUsers.slice(0, 12).map((member) => {
       const workouts = clientWorkouts[member.id] || [];
       const recentWorkouts = getRecentWorkoutCount(workouts);
       const progress = Math.min(100, Math.round((recentWorkouts / CLIENT_PROGRESS_TARGET) * 100));
       const nextClass = classes[0];
+      const latestWorkout = getLatestWorkout(workouts);
 
       return {
         initials: getInitials(member),
         name: member.username || member.email,
         goal: recentWorkouts > 0 ? `${recentWorkouts} workouts this month` : 'No recent workouts',
         progress,
+        recentWorkouts,
+        currentWeight: member.current_weight,
+        goalWeight: member.goal_weight,
+        weeklyTarget: member.weekly_target,
+        totalMinutes: getWorkoutMinutes(workouts),
+        lastWorkout: latestWorkout?.workout_name || latestWorkout?.name || 'No workout logged',
+        lastWorkoutAt: latestWorkout ? formatDateTime(latestWorkout.workout_date || latestWorkout.created_at) : 'No activity yet',
         next: nextClass ? formatDateTime(nextClass.schedule_time) : 'No session scheduled',
       };
     });
@@ -265,21 +428,15 @@ export function TrainerDashboardPage() {
     return Math.round(clientCards.reduce((total, client) => total + client.progress, 0) / clientCards.length);
   }, [clientCards]);
 
-  const spotlightClient = clientCards[0] || {
-    name: 'No clients yet',
-    goal: 'Invite members to begin coaching',
-    progress: 0,
-    next: 'No session scheduled',
-  };
-
   const scheduleRows = useMemo(() => {
+    const now = new Date();
     const source = todayClasses.length ? todayClasses : classes.slice(0, 5);
     return source.map((item, index) => ({
       id: item.id,
       time: formatTime(item.schedule_time),
       client: item.instructor_name || trainerName,
       session: item.title,
-      state: index === 0 ? 'Start' : `${item.available_slots} slots`,
+      state: new Date(item.schedule_time) < now ? 'Complete' : index === 0 ? 'Start' : `${item.available_slots} slots`,
     }));
   }, [classes, todayClasses, trainerName]);
 
@@ -296,31 +453,48 @@ export function TrainerDashboardPage() {
 
     return Math.round((booked / slots) * 100);
   }, [thisWeekClasses]);
+  const clientsNeedingAttention = useMemo(() => clientCards.filter((client) => client.progress < 35).length, [clientCards]);
+  const totalClientMinutes = useMemo(() => clientCards.reduce((total, client) => total + Number(client.totalMinutes || 0), 0), [clientCards]);
+  const sessionHours = useMemo(() => {
+    return thisWeekClasses.reduce((total, item) => total + getClassHours(item), 0);
+  }, [thisWeekClasses]);
+  const completedTodaySessions = useMemo(() => {
+    const now = new Date();
+    return todayClasses.filter((item) => new Date(item.schedule_time) < now).length;
+  }, [todayClasses]);
 
   const navItems = [
     { id: 'overview', label: 'Overview', icon: 'dashboard' },
+    { id: 'schedule', label: 'Sessions', icon: 'calendar_today' },
     { id: 'clients', label: 'Clients', icon: 'group' },
-    { id: 'schedule', label: 'Schedule', icon: 'calendar_today' },
+    { id: 'progress', label: 'Progress', icon: 'monitoring' },
     { id: 'programs', label: 'Programs', icon: 'fitness_center' },
     { id: 'messages', label: 'Messages', icon: 'chat_bubble', badge: unreadMessageCount },
   ];
   const tabTitle = {
     overview: 'Trainer Portal',
+    schedule: 'Sessions',
     clients: 'Clients',
-    schedule: 'Schedule',
+    progress: 'Progress',
     programs: 'Programs',
     messages: 'Messages',
   }[activeTab];
   const tabDescription = {
     overview: `Welcome back, ${trainerName}. Here is your coaching overview.`,
+    schedule: `Welcome back, ${trainerName}. Plan classes and prevent schedule conflicts.`,
     clients: `Welcome back, ${trainerName}. Track client progress and next sessions.`,
-    schedule: `Welcome back, ${trainerName}. Create classes and review your schedule.`,
+    progress: `Welcome back, ${trainerName}. Review client milestones and training consistency.`,
     programs: `Welcome back, ${trainerName}. Manage programs for your members.`,
     messages: `Welcome back, ${trainerName}. Reply to member messages.`,
   }[activeTab];
 
+  const selectedConversation = useMemo(() => {
+    return conversations.find((conversation) => String(conversation.user_id) === String(selectedConversationId)) || null;
+  }, [conversations, selectedConversationId]);
+
   return (
-    <div className="trainer-dashboard-page">
+    <div className={`trainer-dashboard-page ${isNavOpen ? 'nav-open' : ''}`}>
+      <button aria-label="Close sidebar" className="trainer-backdrop" onClick={() => setIsNavOpen(false)} type="button" />
       <aside className="trainer-sidebar">
         <a className="trainer-brand" href="/">
           <span className="trainer-brand-mark">OG</span>
@@ -334,7 +508,7 @@ export function TrainerDashboardPage() {
             <button
               className={`${activeTab === item.id ? 'active' : ''} ${item.badge ? 'trainer-nav-with-badge' : ''}`}
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => openTrainerTab(item.id)}
               type="button"
             >
               <span className="material-symbols-outlined">{item.icon}</span>
@@ -343,7 +517,7 @@ export function TrainerDashboardPage() {
             </button>
           ))}
         </nav>
-        <button onClick={() => setActiveTab('schedule')} type="button">
+        <button onClick={() => openTrainerTab('schedule')} type="button">
           <span className="material-symbols-outlined">add</span>
           New Session
         </button>
@@ -351,7 +525,18 @@ export function TrainerDashboardPage() {
 
       <main className="trainer-main">
         <header className="trainer-topbar">
-          <a className="trainer-mobile-brand" href="/">OneGym</a>
+          <div className="trainer-topbar-title-row">
+            <button className="trainer-menu-btn" onClick={() => setIsNavOpen(true)} type="button">
+              <span className="material-symbols-outlined">menu</span>
+            </button>
+            <a className="trainer-mobile-brand" href="/">
+              <span className="trainer-brand-mark">OG</span>
+              <span className="trainer-brand-text">
+                <strong>OneGym</strong>
+                <small>Trainer Space</small>
+              </span>
+            </a>
+          </div>
           <div>
             <h1>{tabTitle}</h1>
             <p>{tabDescription}</p>
@@ -374,28 +559,44 @@ export function TrainerDashboardPage() {
           <div className="trainer-dashboard-alert">{dashboardMessage}</div>
         )}
 
-        {activeTab === 'overview' && <section className="trainer-kpi-grid">
-          <article>
-            <p>Total Clients</p>
-            <strong>{memberUsers.length}</strong>
-            <span><i className="material-symbols-outlined">group</i>{trainerUsers.length} trainers active</span>
-          </article>
-          <article>
-            <p>Sessions This Week</p>
-            <strong>{thisWeekClasses.length}</strong>
-            <span>{weeklyCapacity}% capacity reached</span>
-          </article>
-          <article>
-            <p>Avg Client Progress</p>
-            <strong>{averageProgress}%</strong>
-            <div className="trainer-progress-track"><i style={{ width: `${averageProgress}%` }}></i></div>
-          </article>
+        {activeTab === 'overview' && <section className="trainer-hero-panel">
+          <div className="trainer-hero-copy">
+            <p className="trainer-eyebrow">Today&apos;s Coaching Hub</p>
+            <h2>Coach smarter with OneGym</h2>
+            <p>Track clients, sessions, progress, and messages from one focused coaching control center.</p>
+            <div className="trainer-hero-actions">
+              <button onClick={() => setActiveTab('schedule')} type="button">View Sessions</button>
+              <button onClick={() => setActiveTab('messages')} type="button">Open Messages</button>
+            </div>
+          </div>
+          <div className="trainer-hero-stats">
+            <article>
+              <span className="material-symbols-outlined">calendar_today</span>
+              <small>Today&apos;s Sessions</small>
+              <strong>{todayClasses.length}</strong>
+            </article>
+            <article>
+              <span className="material-symbols-outlined">priority_high</span>
+              <small>Need Attention</small>
+              <strong>{clientsNeedingAttention}</strong>
+            </article>
+            <article>
+              <span className="material-symbols-outlined">chat_bubble</span>
+              <small>Unread</small>
+              <strong>{unreadMessageCount}</strong>
+            </article>
+            <article>
+              <span className="material-symbols-outlined">donut_large</span>
+              <small>Capacity</small>
+              <strong>{weeklyCapacity}%</strong>
+            </article>
+          </div>
         </section>}
 
-        {(activeTab === 'overview' || activeTab === 'schedule') && <section className="trainer-create-class-section">
+        {activeTab === 'schedule' && <section className="trainer-create-class-section">
           <div className="trainer-section-title">
             <div>
-              <p className="trainer-eyebrow">Schedule Builder</p>
+              <p className="trainer-eyebrow">Session Management</p>
               <h2>Create Class</h2>
             </div>
           </div>
@@ -427,21 +628,6 @@ export function TrainerDashboardPage() {
         </section>}
 
         {activeTab === 'overview' && <section className="trainer-work-grid">
-          <article className="trainer-spotlight-card">
-            <div className="trainer-spotlight-image">
-              <img alt="Featured client training" src="https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1100&q=85" />
-              <div>
-                <p>Featured Client</p>
-                <h2>{spotlightClient.name}</h2>
-              </div>
-            </div>
-            <footer>
-              <span><small>Goal</small><strong>{spotlightClient.goal}</strong></span>
-              <span><small>Progress</small><strong>{spotlightClient.progress}%</strong></span>
-              <span><small>Next Session</small><strong>{spotlightClient.next}</strong></span>
-            </footer>
-          </article>
-
           <article className="trainer-schedule-panel" id="schedule">
             <div className="trainer-panel-heading">
               <h2>Today's Schedule</h2>
@@ -455,18 +641,75 @@ export function TrainerDashboardPage() {
                     <strong>{item.client}</strong>
                     <small>{item.session}</small>
                   </div>
-                  {item.state === 'Start' ? (
-                    <button type="button">Start</button>
-                  ) : (
-                    <span className={item.state === 'Complete' ? 'complete' : ''}>{item.state}</span>
-                  )}
+                    {item.state === 'Start' ? (
+                      <button className="trainer-start-action" type="button">Start</button>
+                    ) : (
+                      <span className={`trainer-status-chip ${item.state === 'Complete' ? 'complete' : ''}`}>{item.state}</span>
+                    )}
+                  </div>
+                )) : (
+                <div className="trainer-empty-state">
+                  <span className="material-symbols-outlined">event_available</span>
+                  <strong>No upcoming sessions found.</strong>
+                  <small>Create a class to start filling the schedule.</small>
                 </div>
-              )) : (
-                <div className="trainer-empty-state">No upcoming sessions found.</div>
               )}
             </div>
+            <footer className="trainer-schedule-summary">
+              <span>
+                <strong>{Number(sessionHours.toFixed(1)).toLocaleString()}</strong>
+                <small>Total Hrs</small>
+              </span>
+              <span>
+                <strong>{memberUsers.length}</strong>
+                <small>Clients</small>
+              </span>
+              <span>
+                <strong>{completedTodaySessions}/{todayClasses.length || 0}</strong>
+                <small>Done</small>
+              </span>
+            </footer>
             <button className="trainer-panel-link" onClick={() => setActiveTab('schedule')} type="button">View Full Calendar</button>
           </article>
+        </section>}
+
+        {activeTab === 'overview' && <section className="trainer-progress-section">
+          <div className="trainer-section-title">
+            <div>
+              <p className="trainer-eyebrow">Coaching Progress</p>
+              <h2>Clients to watch</h2>
+            </div>
+            <button className="trainer-panel-link" onClick={() => setActiveTab('progress')} type="button">View Progress</button>
+          </div>
+          <div className="trainer-progress-grid">
+            {clientCards.slice(0, 3).map((client) => (
+              <article key={client.name}>
+                <div className="trainer-client-head">
+                  <span>{client.initials}</span>
+                  <div>
+                    <h3>{client.name}</h3>
+                    <p>{client.lastWorkout}</p>
+                  </div>
+                </div>
+                <div className="trainer-client-metrics">
+                  <span><small>Weight</small><strong>{formatMetric(client.currentWeight, 'kg')}</strong></span>
+                  <span><small>Target</small><strong>{formatMetric(client.goalWeight, 'kg')}</strong></span>
+                  <span><small>Minutes</small><strong>{formatMetric(client.totalMinutes)}</strong></span>
+                </div>
+                <div className="trainer-client-progress">
+                  <div><i style={{ width: `${client.progress}%` }}></i></div>
+                  <strong>{client.progress}%</strong>
+                </div>
+              </article>
+            ))}
+            {!clientCards.length && (
+              <div className="trainer-empty-state">
+                <span className="material-symbols-outlined">monitoring</span>
+                <strong>No client progress found yet.</strong>
+                <small>Client signals appear after members log workouts.</small>
+              </div>
+            )}
+          </div>
         </section>}
 
         {activeTab === 'schedule' && (
@@ -485,13 +728,17 @@ export function TrainerDashboardPage() {
                       <small>{item.session}</small>
                     </div>
                     {item.state === 'Start' ? (
-                      <button type="button">Start</button>
+                      <button className="trainer-start-action" type="button">Start</button>
                     ) : (
-                      <span className={item.state === 'Complete' ? 'complete' : ''}>{item.state}</span>
+                      <span className={`trainer-status-chip ${item.state === 'Complete' ? 'complete' : ''}`}>{item.state}</span>
                     )}
                   </div>
                 )) : (
-                  <div className="trainer-empty-state">No upcoming sessions found.</div>
+                  <div className="trainer-empty-state">
+                    <span className="material-symbols-outlined">event_available</span>
+                    <strong>No upcoming sessions found.</strong>
+                    <small>Create a class to start filling the schedule.</small>
+                  </div>
                 )}
               </div>
             </article>
@@ -520,10 +767,58 @@ export function TrainerDashboardPage() {
                   <div><i style={{ width: `${client.progress}%` }}></i></div>
                   <strong>{client.progress}%</strong>
                 </div>
+                <div className="trainer-client-metrics">
+                  <span><small>Weight</small><strong>{formatMetric(client.currentWeight, 'kg')}</strong></span>
+                  <span><small>Goal</small><strong>{formatMetric(client.goalWeight, 'kg')}</strong></span>
+                  <span><small>Weekly</small><strong>{formatMetric(client.weeklyTarget)}</strong></span>
+                </div>
                 <small>{client.next}</small>
               </article>
             )) : (
-              <div className="trainer-empty-state">No member clients found yet.</div>
+              <div className="trainer-empty-state">
+                <span className="material-symbols-outlined">groups</span>
+                <strong>No member clients found yet.</strong>
+                <small>Members will appear here once they join OneGym.</small>
+              </div>
+            )}
+          </div>
+        </section>}
+
+        {activeTab === 'progress' && <section className="trainer-progress-section" id="progress">
+          <div className="trainer-section-title">
+            <div>
+              <p className="trainer-eyebrow">Performance Analytics</p>
+              <h2>Client Progress Tracking</h2>
+            </div>
+          </div>
+          <div className="trainer-progress-grid">
+            {clientCards.length ? clientCards.map((client) => (
+              <article key={client.name}>
+                <div className="trainer-client-head">
+                  <span>{client.initials}</span>
+                  <div>
+                    <h3>{client.name}</h3>
+                    <p>{client.lastWorkoutAt}</p>
+                  </div>
+                </div>
+                <div className="trainer-client-metrics">
+                  <span><small>30D Workouts</small><strong>{client.recentWorkouts}</strong></span>
+                  <span><small>Weight</small><strong>{formatMetric(client.currentWeight, 'kg')}</strong></span>
+                  <span><small>Goal</small><strong>{formatMetric(client.goalWeight, 'kg')}</strong></span>
+                  <span><small>Minutes</small><strong>{formatMetric(client.totalMinutes)}</strong></span>
+                </div>
+                <div className="trainer-client-progress">
+                  <div><i style={{ width: `${client.progress}%` }}></i></div>
+                  <strong>{client.progress}%</strong>
+                </div>
+                <p className="trainer-client-meta">Latest: {client.lastWorkout}</p>
+              </article>
+            )) : (
+              <div className="trainer-empty-state">
+                <span className="material-symbols-outlined">monitoring</span>
+                <strong>No client milestones available yet.</strong>
+                <small>Progress appears when members log workouts and goals.</small>
+              </div>
             )}
           </div>
         </section>}
@@ -534,35 +829,100 @@ export function TrainerDashboardPage() {
               <p className="trainer-eyebrow">Client Messages</p>
               <h2>Inbox</h2>
             </div>
-            <a href="/trainer-chat">
-              Open Chat
-              {unreadMessageCount > 0 && <span className="trainer-message-count">{unreadMessageCount}</span>}
-            </a>
+            {unreadMessageCount > 0 && <span className="trainer-message-count">{unreadMessageCount}</span>}
           </div>
-          <div className="trainer-message-list">
-            {conversations.length ? conversations.slice(0, 5).map((conversation) => (
-              <a className={conversation.unread_count > 0 ? 'unread' : ''} href={`/trainer-chat?memberId=${conversation.user_id}`} key={conversation.user_id}>
-                <span className="trainer-message-avatar">{getInitials(conversation)}</span>
-                <div>
-                  <strong>{conversation.username}</strong>
-                  <p>{conversation.last_message}</p>
-                  <small>{formatDateTime(conversation.last_message_at)}</small>
+          <div className="trainer-inbox-layout">
+            <div className="trainer-message-list">
+              {conversations.length ? conversations.map((conversation) => (
+                <button
+                  className={`${conversation.unread_count > 0 ? 'unread' : ''} ${String(selectedConversationId) === String(conversation.user_id) ? 'active' : ''}`}
+                  key={conversation.user_id}
+                  onClick={() => setSelectedConversationId(String(conversation.user_id))}
+                  type="button"
+                >
+                  <span className="trainer-message-avatar">{getInitials(conversation)}</span>
+                  <div>
+                    <strong>{conversation.username}</strong>
+                    <p>{conversation.last_message}</p>
+                    <small>{formatDateTime(conversation.last_message_at)}</small>
+                  </div>
+                  {conversation.unread_count > 0 && (
+                    <span className="trainer-message-count">{conversation.unread_count}</span>
+                  )}
+                </button>
+              )) : (
+                <div className="trainer-empty-state">
+                  <span className="material-symbols-outlined">mark_chat_unread</span>
+                  <strong>No client messages yet.</strong>
+                  <small>When members message you, conversations will appear here.</small>
                 </div>
-                {conversation.unread_count > 0 && (
-                  <span className="trainer-message-count">{conversation.unread_count}</span>
+              )}
+            </div>
+
+            <section className="trainer-thread-panel">
+              <div className="trainer-thread-header">
+                <div>
+                  <p className="trainer-eyebrow">Conversation</p>
+                  <h3>{selectedConversation ? selectedConversation.username : 'Choose a member'}</h3>
+                </div>
+                {selectedConversation && <span className="trainer-message-avatar">{getInitials(selectedConversation)}</span>}
+              </div>
+
+              {messageStatus && (
+                <p className={`trainer-chat-status ${isMessageError ? 'error' : ''}`}>{messageStatus}</p>
+              )}
+
+              <div className="trainer-thread-scroll" ref={messageScrollRef}>
+                {!selectedConversation && (
+                  <article className="trainer-thread-empty">
+                    <span className="material-symbols-outlined">forum</span>
+                    <h3>Select a member</h3>
+                    <p>Pick a conversation from the inbox to reply without leaving the dashboard.</p>
+                  </article>
                 )}
-              </a>
-            )) : (
-              <div className="trainer-empty-state">No client messages yet.</div>
-            )}
+
+                {selectedConversation && conversationMessages.length === 0 && (
+                  <article className="trainer-thread-empty">
+                    <span className="material-symbols-outlined">edit_note</span>
+                    <h3>Start the conversation</h3>
+                    <p>Send a check-in, class prep note, or quick coaching cue.</p>
+                  </article>
+                )}
+
+                {conversationMessages.map((message) => {
+                  const isOwnMessage = Number(message.sender_id) === Number(storedTrainer.id);
+
+                  return (
+                    <article className={`trainer-thread-message ${isOwnMessage ? 'own' : ''}`} key={message.id}>
+                      {!isOwnMessage && <strong>{message.sender_name}</strong>}
+                      <p>{message.body}</p>
+                      <time>{formatMessageTime(message.created_at)}</time>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <form className="trainer-thread-input" onSubmit={sendTrainerMessage}>
+                <input
+                  disabled={isSendingMessage || !selectedConversation}
+                  onChange={(event) => setMessageInput(event.target.value)}
+                  placeholder={selectedConversation ? `Message ${selectedConversation.username}...` : 'Choose a member first'}
+                  type="text"
+                  value={messageInput}
+                />
+                <button disabled={isSendingMessage || !selectedConversation} type="submit">
+                  <span className="material-symbols-outlined">arrow_upward</span>
+                </button>
+              </form>
+            </section>
           </div>
         </section>}
 
         {activeTab === 'programs' && <section className="trainer-programs-section" id="programs">
           <div className="trainer-section-title">
             <div>
-              <p className="trainer-eyebrow">Module Management</p>
-              <h2>Active Programs</h2>
+              <p className="trainer-eyebrow">Personalized Programming</p>
+              <h2>Assigned Programs</h2>
             </div>
             <button className="trainer-panel-link" type="button">Browse Library</button>
           </div>

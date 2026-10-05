@@ -342,11 +342,20 @@
   position: relative;
 }
 
-.member-dashboard-page .hero-card::after {
-  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 14px);
+.member-dashboard-page .hero-card::before {
+  background:
+    linear-gradient(90deg, rgba(7, 10, 9, 0.74) 0%, rgba(7, 10, 9, 0.42) 46%, rgba(7, 10, 9, 0.68) 100%),
+    url("https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1400&q=80") center / cover;
   content: "";
   inset: 0;
-  opacity: 0.55;
+  opacity: 0.54;
+  pointer-events: none;
+  position: absolute;
+}
+
+.member-dashboard-page .hero-card::after {
+  content: "";
+  inset: 0;
   pointer-events: none;
   position: absolute;
 }
@@ -394,6 +403,12 @@
   gap: 12px;
 }
 
+.member-dashboard-page .hero-actions .btn-secondary {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #120b03;
+}
+
 .member-dashboard-page .hero-visual {
   flex: 0 0 140px;
   position: relative;
@@ -421,8 +436,9 @@
 
 .member-dashboard-page .daily-fuel-ring {
   align-items: center;
-  background: radial-gradient(circle at center, var(--bg) 0 57%, transparent 58%),
-    conic-gradient(var(--green) var(--ring-percent, 0%), rgba(255, 255, 255, 0.08) 0);
+  background:
+    radial-gradient(circle at center, transparent 0 48%, rgba(255, 255, 255, 0.24) 49% 57%, transparent 58%),
+    conic-gradient(#a8b0ac var(--ring-percent, 0%), transparent 0);
   border-radius: 50%;
   display: flex;
   height: 110px;
@@ -450,6 +466,18 @@
   justify-content: space-between;
   min-height: 74px;
   padding: 18px 22px;
+  position: relative;
+}
+
+.member-dashboard-page .stat-card::before,
+.member-dashboard-page .middle-grid .fill-card::before {
+  background: linear-gradient(90deg, var(--green), rgba(45, 212, 191, 0.72), transparent);
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
 }
 
 .member-dashboard-page .label,
@@ -487,6 +515,12 @@
   height: 38px;
   justify-content: center;
   width: 38px;
+}
+
+.member-dashboard-page .stat-card:first-child .stat-icon {
+  background: rgba(255, 30, 30, 0.16);
+  border-color: rgba(255, 30, 30, 0.32);
+  color: #ff2b2b;
 }
 
 .member-dashboard-page .teal-icon {
@@ -564,6 +598,7 @@
   background:
     linear-gradient(145deg, rgba(18, 26, 23, 0.96), rgba(7, 10, 9, 0.96));
   min-height: 0;
+  position: relative;
 }
 
 .member-dashboard-page .class-panel-title {
@@ -624,17 +659,18 @@
 
 .member-dashboard-page .class-time strong {
   display: block;
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .member-dashboard-page .class-time span {
-  color: var(--muted);
+  color: var(--text);
   display: block;
-  font-size: 9px;
+  font-size: 14px;
   font-weight: 900;
-  margin-top: 2px;
-  text-transform: uppercase;
+  margin-top: 4px;
 }
 
 .member-dashboard-page .class-details h4,
@@ -891,6 +927,100 @@
   margin-top: 6px;
 }
 
+.member-dashboard-page .overview-fuel-strip {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 18px 0 0;
+}
+
+.member-dashboard-page .overview-fuel-card {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  min-height: 82px;
+  padding: 18px 20px;
+  position: relative;
+}
+
+.member-dashboard-page .overview-fuel-card::before {
+  background: linear-gradient(90deg, var(--green), rgba(45, 212, 191, 0.72), transparent);
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.member-dashboard-page .overview-fuel-icon {
+  align-items: center;
+  background: rgba(34, 197, 94, 0.13);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 999px;
+  color: var(--green);
+  display: flex;
+  flex: 0 0 40px;
+  font-size: 22px;
+  font-style: normal;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.member-dashboard-page .overview-fuel-icon.protein {
+  background: rgba(245, 158, 11, 0.13);
+  border-color: rgba(245, 158, 11, 0.24);
+  color: var(--yellow);
+}
+
+.member-dashboard-page .overview-fuel-icon.carbs {
+  background: rgba(40, 214, 191, 0.12);
+  border-color: rgba(40, 214, 191, 0.24);
+  color: var(--cyan);
+}
+
+.member-dashboard-page .overview-fuel-icon.fats {
+  background: rgba(251, 113, 133, 0.12);
+  border-color: rgba(251, 113, 133, 0.24);
+  color: var(--pink);
+}
+
+.member-dashboard-page .overview-fuel-card strong {
+  display: block;
+  font-size: 24px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.member-dashboard-page .overview-fuel-card strong small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.member-dashboard-page .overview-fuel-meter {
+  display: grid;
+  flex: 0 1 320px;
+  gap: 8px;
+}
+
+.member-dashboard-page .overview-fuel-meter .bar-bg {
+  background: transparent;
+}
+
+.member-dashboard-page .overview-fuel-meter span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
 .member-dashboard-page .nutrition-shell {
   margin-bottom: 20px;
 }
@@ -1011,6 +1141,18 @@
 .member-dashboard-page .meal-thumb {
   border-radius: 10px;
   object-fit: cover;
+}
+
+.member-dashboard-page .meal-photo-placeholder {
+  align-items: center;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(34, 197, 94, 0.2), transparent 34%),
+    rgba(255, 255, 255, 0.055);
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  display: inline-flex;
+  font-size: 21px;
+  justify-content: center;
 }
 
 .member-dashboard-page .meal-name strong {
@@ -1871,6 +2013,24 @@
   margin-bottom: 4px;
 }
 
+.member-dashboard-page .ai-mini-macros {
+  display: flex;
+  gap: 18px;
+  margin-top: 10px;
+}
+
+.member-dashboard-page .ai-mini-macros strong {
+  font-size: 18px;
+  margin: 0;
+}
+
+.member-dashboard-page .ai-mini-macros small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
 .member-dashboard-page .ai-dashboard-input {
   border-top: 1px solid var(--line);
   display: flex;
@@ -2653,6 +2813,7 @@
   .member-dashboard-page .hero-layout,
   .member-dashboard-page .middle-grid,
   .member-dashboard-page .analytics-grid,
+  .member-dashboard-page .overview-fuel-strip,
   .member-dashboard-page .dashboard-classes-grid,
   .member-dashboard-page .nutrition-grid,
   .member-dashboard-page .dashboard-profile-grid,

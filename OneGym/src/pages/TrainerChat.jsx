@@ -4,7 +4,9 @@ import { NavBar } from '../components/NavBar';
 import './AiAssistant.css';
 import './TrainerChat.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.DEV
+  ? '/api'
+  : (import.meta.env.VITE_API_BASE_URL || '/api');
 const MEMBER_SIDE_ROLES = new Set(['member', 'pro', 'studio']);
 
 async function readApiResponse(response) {
@@ -67,7 +69,7 @@ export function TrainerChatPage() {
 
   async function loadChatTargets() {
     try {
-      const response = await fetch(`${API_BASE_URL}/users/`);
+      const response = await fetch(`${API_BASE_URL}/users/`, { credentials: 'include' });
       const data = await readApiResponse(response);
 
       if (!response.ok) {
