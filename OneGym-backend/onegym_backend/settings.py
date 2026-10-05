@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
+import dj_database_url
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -37,18 +39,39 @@ load_env_file(BASE_DIR / '.env')
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-f$z*(+%a6x(i=ly$7xq0e^l^k!z*4mbz7(ih8ak_sne3#@bd6h'
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY',
+    'django-insecure-f$z*(+%a6x(i=ly$7xq0e^l^k!z*4mbz7(ih8ak_sne3#@bd6h',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').strip().lower() == 'true'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    if host.strip()
 ]
+if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
+    ALLOWED_HOSTS.append(os.environ['RENDER_EXTERNAL_HOSTNAME'])
+
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:5173',
+).split(',') if origin.strip()]
+if DEBUG and 'http://127.0.0.1:5173' not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append('http://127.0.0.1:5173')
 CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get(
+    'CSRF_TRUSTED_ORIGINS',
+    '',
+).split(',') if origin.strip()]
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 
 # Application definition
@@ -67,6 +90,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -99,9 +123,18 @@ WSGI_APPLICATION = 'onegym_backend.wsgi.application'
 # Database
 # Select PostgreSQL for the migrated application. MySQL remains available as a
 # rollback option by setting DATABASE_ENGINE=mysql.
+DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
 DATABASE_ENGINE = os.environ.get('DATABASE_ENGINE', 'mysql').strip().lower()
 
-if DATABASE_ENGINE in {'postgres', 'postgresql'}:
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
+            conn_health_checks=True,
+        )
+    }
+elif DATABASE_ENGINE in {'postgres', 'postgresql'}:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -169,7 +202,12 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+}
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
