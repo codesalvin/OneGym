@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import './SignInPage.css';
+import heroImage from '../../images/login.jpg';
+import logoImage from '../../images/logo.png';
 
-const heroImage = '../images/login.jpg';
-  
-const logoImage = '../images/logo.png';
 const API_BASE_URL = import.meta.env.DEV
   ? '/api'
   : (import.meta.env.VITE_API_BASE_URL || '/api');
