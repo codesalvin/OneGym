@@ -128,6 +128,14 @@ class WorkoutCreateSerializer(serializers.Serializer):
         return value
 
 
+class WorkoutExerciseSummarySerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    exercise_name = serializers.CharField()
+    sets = serializers.IntegerField()
+    reps = serializers.IntegerField()
+    weight = serializers.DecimalField(max_digits=6, decimal_places=2)
+
+
 class WorkoutSummarySerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
@@ -137,6 +145,7 @@ class WorkoutSummarySerializer(serializers.Serializer):
     workout_date = serializers.DateTimeField()
     created_at = serializers.DateTimeField()
     exercise_count = serializers.IntegerField()
+    exercises = WorkoutExerciseSummarySerializer(many=True)
 
 
 class ExerciseSerializer(serializers.Serializer):

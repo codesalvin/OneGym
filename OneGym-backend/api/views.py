@@ -2409,6 +2409,7 @@ def user_workouts(request, user_id):
                 'workout_date': workout_date,
                 'created_at': created_at,
                 'exercise_count': exercise_count,
+                'exercises': [],
             }
             for (
                 workout_id,
@@ -2421,6 +2422,27 @@ def user_workouts(request, user_id):
                 exercise_count,
             ) in cursor.fetchall()
         ]
+
+        workout_by_id = {workout['id']: workout for workout in workouts}
+        if workout_by_id:
+            placeholders = ', '.join(['%s'] * len(workout_by_id))
+            cursor.execute(
+                f'''
+                SELECT id, workout_id, exercise_name, sets, reps, weight
+                FROM workout_exercises
+                WHERE workout_id IN ({placeholders})
+                ORDER BY workout_id, id
+                ''',
+                list(workout_by_id),
+            )
+            for exercise_id, workout_id, exercise_name, sets, reps, weight in cursor.fetchall():
+                workout_by_id[workout_id]['exercises'].append({
+                    'id': exercise_id,
+                    'exercise_name': exercise_name,
+                    'sets': sets,
+                    'reps': reps,
+                    'weight': weight,
+                })
 
     serializer = WorkoutSummarySerializer(workouts, many=True)
     return Response(serializer.data)

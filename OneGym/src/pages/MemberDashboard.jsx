@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import './MemberDashboard.css';
+import './WorkoutHistory.css';
 
 const API_BASE_URL = import.meta.env.DEV
   ? '/api'
@@ -645,6 +646,7 @@ export function MemberDashboardPage() {
   const [isTrainingError, setIsTrainingError] = useState(false);
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [pendingWorkoutDelete, setPendingWorkoutDelete] = useState(null);
+  const [expandedWorkoutIds, setExpandedWorkoutIds] = useState(() => new Set());
   const [trainingNotice, setTrainingNotice] = useState(null);
   const [mealNotice, setMealNotice] = useState(null);
   const [aiNotice, setAiNotice] = useState(null);
@@ -1648,6 +1650,16 @@ export function MemberDashboardPage() {
     });
   }
 
+  function toggleWorkoutExercises(workout) {
+    const workoutId = String(getWorkoutId(workout));
+    setExpandedWorkoutIds((current) => {
+      const next = new Set(current);
+      if (next.has(workoutId)) next.delete(workoutId);
+      else next.add(workoutId);
+      return next;
+    });
+  }
+
   async function confirmDeleteWorkout() {
     if (!pendingWorkoutDelete || !user?.id) return;
 
@@ -2422,8 +2434,12 @@ export function MemberDashboardPage() {
                   {visibleWorkouts.length ? (
                     [...workouts]
                       .sort((a, b) => new Date(workoutDate(b)) - new Date(workoutDate(a)))
-                      .map((workout) => (
-                        <article className="history-row" key={getWorkoutId(workout) || `${workoutDate(workout)}-${workout.name}`}>
+                      .map((workout) => {
+                        const workoutId = String(getWorkoutId(workout));
+                        const isExpanded = expandedWorkoutIds.has(workoutId);
+                        const workoutExercises = Array.isArray(workout.exercises) ? workout.exercises : [];
+                        return (
+                        <article className={`history-row ${isExpanded ? 'expanded' : ''}`} key={workoutId || `${workoutDate(workout)}-${workout.name}`}>
                           <div>
                             <p className="history-date">{formatHistoryDate(workoutDate(workout))}</p>
                             <h3>{workout.name || workout.title || 'Workout'}</h3>
@@ -2434,11 +2450,37 @@ export function MemberDashboardPage() {
                             <span>{toNumber(workout.calories_burned || workout.calories)} kcal</span>
                             <span>{toNumber(workout.exercise_count || workout.exercises_count || workout.exercises?.length)} exercises</span>
                           </div>
-                          <button className="history-delete" onClick={() => askToDeleteWorkout(workout)} type="button" aria-label={`Delete ${workout.name || 'workout'}`}>
-                            <span className="material-symbols-outlined">delete</span>
-                          </button>
+                          <div className="history-actions">
+                            <button
+                              aria-expanded={isExpanded}
+                              className="history-expand"
+                              onClick={() => toggleWorkoutExercises(workout)}
+                              type="button"
+                            >
+                              <span>{isExpanded ? 'Hide exercises' : 'View exercises'}</span>
+                              <span className="material-symbols-outlined">{isExpanded ? 'expand_less' : 'expand_more'}</span>
+                            </button>
+                            <button className="history-delete" onClick={() => askToDeleteWorkout(workout)} type="button" aria-label={`Delete ${workout.name || 'workout'}`}>
+                              <span className="material-symbols-outlined">delete</span>
+                            </button>
+                          </div>
+                          {isExpanded ? (
+                            <div className="history-exercises">
+                              {workoutExercises.length ? workoutExercises.map((exercise) => (
+                                <div className="history-exercise" key={exercise.id || `${workoutId}-${exercise.exercise_name}`}>
+                                  <strong>{exercise.exercise_name}</strong>
+                                  <div>
+                                    <span>{toNumber(exercise.sets)} sets</span>
+                                    <span>{toNumber(exercise.reps)} reps</span>
+                                    <span>{toNumber(exercise.weight)} kg</span>
+                                  </div>
+                                </div>
+                              )) : <p className="history-exercises-empty">No exercise details were saved for this workout.</p>}
+                            </div>
+                          ) : null}
                         </article>
-                      ))
+                        );
+                      })
                   ) : (
                     <div className="empty-state">No workouts logged yet.</div>
                   )}
