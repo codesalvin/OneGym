@@ -1337,10 +1337,10 @@ export function MemberDashboardPage() {
       const response = await fetch(`${API_BASE_URL}/meals/analyze/`, { method: 'POST', body: formData });
       const data = await parseResponse(response);
       if (!response.ok) throw new Error(data.detail || 'Food analysis service is unavailable.');
-      const hasNutritionEstimate = [data.calories, data.protein_g, data.carbs_g, data.fats_g]
-        .some((value) => Number(value) > 0);
-      if (!hasNutritionEstimate) {
-        throw new Error(data.detail || 'No nutrition estimate was returned. Try a clearer, closer food photo.');
+      const hasCompleteNutritionEstimate = [data.calories, data.protein_g, data.carbs_g, data.fats_g]
+        .every((value) => Number(value) > 0);
+      if (!hasCompleteNutritionEstimate) {
+        throw new Error(data.detail || 'A complete calorie and macronutrient estimate was not returned. Try a clearer, closer food photo.');
       }
 
       setMealForm((current) => ({

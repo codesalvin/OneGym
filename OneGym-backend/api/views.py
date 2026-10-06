@@ -151,7 +151,9 @@ def first_number(*values):
         try:
             return float(value)
         except (TypeError, ValueError):
-            continue
+            match = re.search(r'-?\d+(?:\.\d+)?', str(value).replace(',', ''))
+            if match:
+                return float(match.group(0))
 
     return 0
 
@@ -181,6 +183,12 @@ def find_nested_value(data, keys):
             if key in data and data[key] not in [None, '']:
                 return data[key]
 
+        normalized_keys = {re.sub(r'[^a-z0-9]', '', str(key).lower()) for key in keys}
+        for key, value in data.items():
+            normalized_key = re.sub(r'[^a-z0-9]', '', str(key).lower())
+            if normalized_key in normalized_keys and value not in [None, '']:
+                return value
+
         for value in data.values():
             found = find_nested_value(value, keys)
             if found not in [None, '']:
@@ -204,9 +212,9 @@ def normalize_food_estimate(estimate, raw_text=''):
         or 'Estimated meal'
     )
     calories = int(first_number(find_nested_value(estimate, ['calories', 'kcal', 'calories_kcal', 'estimated_calories'])))
-    protein = first_number(find_nested_value(estimate, ['protein_g', 'protein', 'proteinGrams', 'protein_grams']))
-    carbs = first_number(find_nested_value(estimate, ['carbs_g', 'carbs', 'carbohydrates', 'carbohydrates_g', 'carb_grams']))
-    fats = first_number(find_nested_value(estimate, ['fats_g', 'fat_g', 'fats', 'fat', 'fat_grams']))
+    protein = first_number(find_nested_value(estimate, ['protein_g', 'protein', 'proteinGrams', 'protein_grams', 'protein (g)']))
+    carbs = first_number(find_nested_value(estimate, ['carbs_g', 'carbs', 'carbohydrates', 'carbohydrates_g', 'carb_grams', 'carbohydrates (g)']))
+    fats = first_number(find_nested_value(estimate, ['fats_g', 'fat_g', 'fats', 'fat', 'fat_grams', 'total_fat_g', 'fat (g)']))
     detected_foods = find_nested_value(estimate, ['detected_foods', 'foods', 'items', 'ingredients'])
 
     if not isinstance(detected_foods, list):
@@ -874,7 +882,10 @@ def analyze_food_image(uploaded_file):
     estimate = extract_json_object(content)
     normalized = normalize_food_estimate(estimate, content)
 
-    if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
+    def estimate_is_incomplete(value):
+        return any(first_number(value.get(field)) <= 0 for field in ['calories', 'protein_g', 'carbs_g', 'fats_g'])
+
+    if estimate_is_incomplete(normalized):
         retry_content = get_gemini_text(post_gemini_generate(build_gemini_text_payload(build_ollama_text_payload(content)['prompt'])))
         if not retry_content:
             raise ValueError('Gemini described the food but did not return nutrition numbers.')
@@ -882,21 +893,21 @@ def analyze_food_image(uploaded_file):
 
     normalized['description'] = shorten_description(normalized['description'])
 
-    if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
+    if estimate_is_incomplete(normalized):
         retry_content = get_gemini_text(post_gemini_generate(build_gemini_image_payload(image_data, mime_type, strict_retry=True)))
         if retry_content:
             normalized = normalize_food_estimate(extract_json_object(retry_content), retry_content)
             normalized['description'] = shorten_description(normalized['description'])
 
-    if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
+    if estimate_is_incomplete(normalized):
         text_retry_content = get_gemini_text(post_gemini_generate(build_gemini_text_payload(build_ollama_text_payload(content)['prompt'])))
         if text_retry_content:
             normalized = normalize_food_estimate(extract_json_object(text_retry_content), text_retry_content)
             normalized['description'] = shorten_description(normalized['description'])
 
-    if normalized['calories'] == 0 and normalized['protein_g'] == 0 and normalized['carbs_g'] == 0 and normalized['fats_g'] == 0:
+    if estimate_is_incomplete(normalized):
         normalized['description'] = extract_partial_description(content)
-        raise ValueError('Gemini described the food but did not return nutrition numbers. Try a clearer, closer food photo.')
+        raise ValueError('Gemini did not return a complete calorie and macronutrient estimate. Try a clearer, closer food photo.')
 
     normalized['detail'] = 'Nutrition estimate generated from photo.'
     return normalized
