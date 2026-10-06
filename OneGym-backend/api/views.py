@@ -649,7 +649,7 @@ def user_trainer_chat_messages(request, user_id):
         users = {row[0]: {'username': row[1], 'role': row[2]} for row in cursor.fetchall()}
         if member_id not in users or trainer_id not in users:
             return Response({'detail': 'Conversation user not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if users[member_id]['role'] != 'member' or users[trainer_id]['role'] != 'trainer':
+        if users[member_id]['role'] not in MEMBER_SUBSCRIPTION_ROLES or users[trainer_id]['role'] != 'trainer':
             return Response({'detail': 'Trainer chat must be between a member and a trainer.'}, status=status.HTTP_400_BAD_REQUEST)
 
         cursor.execute(
@@ -769,9 +769,9 @@ def trainer_chat_message(request):
             return Response({'detail': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         valid_pair = (
-            actor['role'] == 'member' and recipient[2] == 'trainer'
+            actor['role'] in MEMBER_SUBSCRIPTION_ROLES and recipient[2] == 'trainer'
         ) or (
-            actor['role'] == 'trainer' and recipient[2] == 'member'
+            actor['role'] == 'trainer' and recipient[2] in MEMBER_SUBSCRIPTION_ROLES
         )
         if actor['role'] not in ['admin', 'owner'] and not valid_pair:
             return Response({'detail': 'Trainer chat must be between a member and a trainer.'}, status=status.HTTP_403_FORBIDDEN)
