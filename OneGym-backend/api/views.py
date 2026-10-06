@@ -2698,7 +2698,7 @@ def build_auth_response(user, response_status=status.HTTP_200_OK):
     user = dict(user)
     user['role'] = str(user.get('role') or 'member').lower()
     token = create_auth_token(user['id'])
-    response = Response({'user': user}, status=response_status)
+    response = Response({'user': user, 'token': token}, status=response_status)
     response.set_cookie(
         AUTH_COOKIE_NAME,
         token,
@@ -2752,7 +2752,11 @@ def get_authenticated_user(request):
 
 @api_view(['POST'])
 def sign_out(request):
+    header = request.headers.get('Authorization', '')
+    prefix = 'Bearer '
     token = request.COOKIES.get(AUTH_COOKIE_NAME, '')
+    if header.startswith(prefix):
+        token = header[len(prefix):].strip()
     if token:
         with connection.cursor() as cursor:
             cursor.execute(

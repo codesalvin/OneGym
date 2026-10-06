@@ -97,6 +97,7 @@ export function NavBar() {
     }
 
     localStorage.removeItem('onegymUser');
+    localStorage.removeItem('onegymAuthToken');
     window.dispatchEvent(new Event('onegym-auth-change'));
     setUser(null);
     window.location.href = '/signin';

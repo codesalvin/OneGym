@@ -38,7 +38,11 @@ function saveAuthenticatedUser(data) {
     throw new Error('User data was not returned by the server.');
   }
 
-  localStorage.removeItem('onegymAuthToken');
+  if (!data.token) {
+    throw new Error('Authentication token was not returned by the server.');
+  }
+
+  localStorage.setItem('onegymAuthToken', data.token);
   localStorage.setItem('onegymUser', JSON.stringify(data.user));
   window.dispatchEvent(new Event('onegym-auth-change'));
 }

@@ -83,6 +83,7 @@ async function api(path, options = {}) {
   });
   if (response.status === 401) {
     localStorage.removeItem('onegymUser');
+    localStorage.removeItem('onegymAuthToken');
     window.location.replace('/signin?reason=session-expired');
     throw new Error('Session expired.');
   }
@@ -181,7 +182,7 @@ export function AdminDashboardPage() {
         {id === 'trainers' && Number(counts.pending_trainers) > 0 && <b>{counts.pending_trainers}</b>}
       </button>)}</nav>
       <div className="admin-sidebar-user"><div>{(admin.username || 'A')[0].toUpperCase()}</div><span><strong>{admin.username || 'Administrator'}</strong><small>{admin.email}</small></span></div>
-      <button className="admin-signout" onClick={async () => { await fetch('/api/auth/signout/', { method: 'POST', credentials: 'include' }); localStorage.removeItem('onegymUser'); location.href='/signin'; }}><span className="material-symbols-outlined">logout</span>Sign out</button>
+      <button className="admin-signout" onClick={async () => { await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/signout/`, { method: 'POST', credentials: 'include' }); localStorage.removeItem('onegymUser'); localStorage.removeItem('onegymAuthToken'); location.href='/signin'; }}><span className="material-symbols-outlined">logout</span>Sign out</button>
     </aside>
 
     <main className="admin-main">
