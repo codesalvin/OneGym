@@ -856,28 +856,10 @@ def ai_assistant_chat(request):
 
 def analyze_food_image(uploaded_file):
     if not settings.GEMINI_API_KEY:
-        return {
-            'description': '',
-            'calories': '',
-            'protein_g': '',
-            'carbs_g': '',
-            'fats_g': '',
-            'confidence': 'manual_required',
-            'detected_foods': [],
-            'detail': 'Add GEMINI_API_KEY to OneGym-backend/.env to enable food photo estimates.',
-        }
+        raise ValueError('Food photo estimation is not configured on the server.')
 
     if not settings.GEMINI_MODEL:
-        return {
-            'description': '',
-            'calories': '',
-            'protein_g': '',
-            'carbs_g': '',
-            'fats_g': '',
-            'confidence': 'manual_required',
-            'detected_foods': [],
-            'detail': 'Add GEMINI_MODEL to OneGym-backend/.env to enable food photo estimates.',
-        }
+        raise ValueError('Food photo estimation model is not configured on the server.')
 
     uploaded_file.seek(0)
     image_bytes = uploaded_file.read()
