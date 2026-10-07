@@ -198,6 +198,38 @@
   max-width: 1180px;
 }
 
+.trainer-dashboard-page.tab-messages {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.trainer-dashboard-page.tab-messages .trainer-main {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 28px;
+}
+
+.trainer-dashboard-page.tab-messages .trainer-main > * {
+  max-width: none;
+  width: 100%;
+}
+
+.trainer-dashboard-page.tab-messages .trainer-topbar {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  flex: 0 0 auto;
+  margin-bottom: 14px;
+  padding: 16px 18px;
+}
+
+.trainer-dashboard-page.tab-messages .trainer-live-note {
+  display: none;
+}
+
 .trainer-topbar {
   align-items: center;
   display: flex;
@@ -922,17 +954,54 @@
 
 .trainer-inbox-layout {
   display: grid;
-  gap: 18px;
-  grid-template-columns: 360px minmax(0, 1fr);
+  flex: 1;
+  gap: 12px;
+  grid-template-columns: 300px minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.trainer-messages-section {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.trainer-messages-section::after {
+  display: none;
+}
+
+.trainer-message-list {
+  background: #050706;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: -26px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 8px 14px 8px 26px;
 }
 
 .trainer-message-list button {
   align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
   color: var(--text);
   cursor: pointer;
   display: grid;
-  gap: 14px;
+  gap: 12px;
   grid-template-columns: 48px minmax(0, 1fr) auto;
+  padding: 12px;
   text-align: left;
   width: 100%;
 }
@@ -947,14 +1016,31 @@
 }
 
 .trainer-message-list button.active {
-  box-shadow: inset 3px 0 0 var(--green);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
 }
 
 .trainer-message-avatar {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
   border-radius: 999px;
+  color: var(--text);
+  display: flex;
   flex: 0 0 48px;
+  font-size: 13px;
+  font-weight: 950;
   height: 48px;
+  justify-content: center;
+  letter-spacing: 0.08em;
   width: 48px;
+}
+
+.trainer-message-list button.active .trainer-message-avatar,
+.trainer-thread-header .trainer-message-avatar {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--green-ink);
 }
 
 .trainer-message-list strong {
@@ -975,27 +1061,30 @@
 }
 
 .trainer-thread-panel {
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
-  min-height: 540px;
+  min-height: 0;
   overflow: hidden;
 }
 
 .trainer-thread-header {
   align-items: center;
-  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: 18px;
   display: flex;
   justify-content: space-between;
-  padding: 20px;
+  padding: 16px 18px;
 }
 
 .trainer-thread-header h3 {
-  font-size: 20px;
+  font-size: 28px;
   font-weight: 950;
   letter-spacing: -0.04em;
+  line-height: 1;
   margin: 0;
 }
 
@@ -1019,10 +1108,10 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
   min-height: 0;
   overflow-y: auto;
-  padding: 20px;
+  padding: 22px 4px 22px 0;
 }
 
 .trainer-thread-empty {
@@ -1051,30 +1140,54 @@
 
 .trainer-thread-message {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid var(--line);
-  border-radius: 14px;
   color: var(--text);
-  max-width: min(560px, 82%);
-  padding: 13px 15px;
+  max-width: 78%;
 }
 
 .trainer-thread-message.own {
   align-self: flex-end;
-  background: rgba(34, 197, 94, 0.14);
-  border-color: rgba(34, 197, 94, 0.24);
 }
 
-.trainer-thread-message strong {
+.trainer-thread-label {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 10px;
+  font-weight: 950;
+  gap: 8px;
+  letter-spacing: 0.14em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.trainer-thread-label .material-symbols-outlined {
+  align-items: center;
+  background: rgba(34, 197, 94, 0.16);
+  border-radius: 999px;
   color: var(--green);
-  display: block;
-  font-size: 12px;
-  margin-bottom: 6px;
+  display: flex;
+  font-size: 18px;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.trainer-thread-bubble {
+  background: linear-gradient(145deg, rgba(18, 28, 24, 0.94), rgba(9, 13, 12, 0.94));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.trainer-thread-message.own .trainer-thread-bubble {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.24);
 }
 
 .trainer-thread-message p {
   font-size: 14px;
-  line-height: 1.5;
+  font-weight: 650;
+  line-height: 1.6;
   margin: 0;
 }
 
@@ -1082,25 +1195,27 @@
   color: var(--dim);
   display: block;
   font-size: 10px;
-  font-weight: 800;
-  margin-top: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  margin-top: 7px;
   text-align: right;
+  text-transform: uppercase;
 }
 
 .trainer-thread-input {
   border-top: 1px solid var(--line);
-  display: grid;
+  display: flex;
   gap: 10px;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  padding: 14px;
+  padding-top: 18px;
 }
 
 .trainer-thread-input input {
-  background: rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.045);
   border: 1px solid var(--line);
   border-radius: 12px;
   color: var(--text);
-  height: 44px;
+  flex: 1;
+  min-height: 46px;
   outline: 0;
   padding: 0 14px;
 }
@@ -1118,6 +1233,8 @@
   cursor: pointer;
   display: inline-flex;
   justify-content: center;
+  min-width: 46px;
+  padding: 0;
 }
 
 .trainer-thread-input button:disabled,
@@ -1241,10 +1358,24 @@
 
   .trainer-inbox-layout {
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .trainer-thread-panel {
     min-height: 520px;
+  }
+
+  .trainer-message-list {
+    border-bottom: 1px solid var(--line);
+    border-right: 0;
+    display: grid;
+    grid-auto-columns: minmax(240px, 1fr);
+    grid-auto-flow: column;
+    margin: 0;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 0 14px;
   }
 }
 
@@ -1303,8 +1434,7 @@
     grid-template-columns: 1fr;
   }
 
-  .trainer-session-row,
-  .trainer-message-list button {
+  .trainer-session-row {
     grid-template-columns: 1fr;
   }
 

@@ -477,7 +477,7 @@ export function TrainerDashboardPage() {
     clients: 'Clients',
     progress: 'Progress',
     programs: 'Programs',
-    messages: 'Messages',
+    messages: 'Trainer Chat',
   }[activeTab];
   const tabDescription = {
     overview: `Welcome back, ${trainerName}. Here is your coaching overview.`,
@@ -485,7 +485,7 @@ export function TrainerDashboardPage() {
     clients: `Welcome back, ${trainerName}. Track client progress and next sessions.`,
     progress: `Welcome back, ${trainerName}. Review client milestones and training consistency.`,
     programs: `Welcome back, ${trainerName}. Manage programs for your members.`,
-    messages: `Welcome back, ${trainerName}. Reply to member messages.`,
+    messages: `Welcome back, ${trainerName}. Message members about classes, form, recovery, and session prep.`,
   }[activeTab];
 
   const selectedConversation = useMemo(() => {
@@ -493,7 +493,7 @@ export function TrainerDashboardPage() {
   }, [conversations, selectedConversationId]);
 
   return (
-    <div className={`trainer-dashboard-page ${isNavOpen ? 'nav-open' : ''}`}>
+    <div className={`trainer-dashboard-page tab-${activeTab} ${isNavOpen ? 'nav-open' : ''}`}>
       <button aria-label="Close sidebar" className="trainer-backdrop" onClick={() => setIsNavOpen(false)} type="button" />
       <aside className="trainer-sidebar">
         <a className="trainer-brand" href="/">
@@ -824,15 +824,8 @@ export function TrainerDashboardPage() {
         </section>}
 
         {activeTab === 'messages' && <section className="trainer-messages-section" id="messages">
-          <div className="trainer-section-title">
-            <div>
-              <p className="trainer-eyebrow">Client Messages</p>
-              <h2>Inbox</h2>
-            </div>
-            {unreadMessageCount > 0 && <span className="trainer-message-count">{unreadMessageCount}</span>}
-          </div>
           <div className="trainer-inbox-layout">
-            <div className="trainer-message-list">
+            <aside className="trainer-message-list" aria-label="Member conversations">
               {conversations.length ? conversations.map((conversation) => (
                 <button
                   className={`${conversation.unread_count > 0 ? 'unread' : ''} ${String(selectedConversationId) === String(conversation.user_id) ? 'active' : ''}`}
@@ -857,7 +850,7 @@ export function TrainerDashboardPage() {
                   <small>When members message you, conversations will appear here.</small>
                 </div>
               )}
-            </div>
+            </aside>
 
             <section className="trainer-thread-panel">
               <div className="trainer-thread-header">
@@ -894,8 +887,15 @@ export function TrainerDashboardPage() {
 
                   return (
                     <article className={`trainer-thread-message ${isOwnMessage ? 'own' : ''}`} key={message.id}>
-                      {!isOwnMessage && <strong>{message.sender_name}</strong>}
-                      <p>{message.body}</p>
+                      {!isOwnMessage && (
+                        <span className="trainer-thread-label">
+                          <span className="material-symbols-outlined">person</span>
+                          {message.sender_name || selectedConversation?.username}
+                        </span>
+                      )}
+                      <div className="trainer-thread-bubble">
+                        <p>{message.body}</p>
+                      </div>
                       <time>{formatMessageTime(message.created_at)}</time>
                     </article>
                   );
