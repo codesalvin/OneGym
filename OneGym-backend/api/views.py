@@ -343,6 +343,47 @@ def build_gemini_text_payload(prompt):
     }
 
 
+def build_gemini_assistant_payload(prompt):
+    """Request a predictable assistant response without affecting image analysis."""
+    payload = build_gemini_text_payload(prompt)
+    payload['generationConfig'].update({
+        'maxOutputTokens': 800,
+        'responseMimeType': 'application/json',
+        'responseSchema': {
+            'type': 'OBJECT',
+            'properties': {
+                'summary': {'type': 'STRING'},
+                'cards': {
+                    'type': 'ARRAY',
+                    'items': {
+                        'type': 'OBJECT',
+                        'properties': {
+                            'label': {'type': 'STRING'},
+                            'title': {'type': 'STRING'},
+                            'detail': {'type': 'STRING'},
+                            'macros': {
+                                'type': 'ARRAY',
+                                'items': {
+                                    'type': 'OBJECT',
+                                    'properties': {
+                                        'value': {'type': 'STRING'},
+                                        'label': {'type': 'STRING'},
+                                    },
+                                    'required': ['value', 'label'],
+                                },
+                            },
+                        },
+                        'required': ['label'],
+                    },
+                },
+                'note': {'type': 'STRING'},
+            },
+            'required': ['summary', 'cards'],
+        },
+    })
+    return payload
+
+
 def build_gemini_image_payload(image_data, mime_type, strict_retry=False):
     return {
         'contents': [
@@ -589,9 +630,27 @@ def parse_assistant_reply(content):
         }
 
     cards = data.get('cards') if isinstance(data.get('cards'), list) else []
+    cards = [card for card in cards if isinstance(card, dict)][:2]
+    summary = str(data.get('summary') or data.get('reply') or '').strip()
+
+    generic_summaries = {
+        'your recommendation is ready below.',
+        'here is your recommendation.',
+        'assistant recommendation',
+    }
+    if summary.lower() in generic_summaries and not cards:
+        summary = str(data.get('answer') or data.get('message') or '').strip()
+
+    if not summary and cards:
+        first_card = cards[0]
+        summary = str(first_card.get('detail') or first_card.get('title') or '').strip()
+
+    if not summary:
+        summary = 'I could not generate a complete recommendation. Please try asking again.'
+
     return {
-        'summary': str(data.get('summary') or data.get('reply') or content),
-        'cards': cards[:2],
+        'summary': summary,
+        'cards': cards,
         'note': str(data.get('note') or ''),
     }
 
@@ -834,7 +893,7 @@ def ai_assistant_chat(request):
     save_ai_chat_message(user_id, 'user', message)
 
     try:
-        response_data = post_gemini_generate(build_gemini_text_payload(build_assistant_prompt(message, meals, totals)))
+        response_data = post_gemini_generate(build_gemini_assistant_payload(build_assistant_prompt(message, meals, totals)))
         reply = get_gemini_text(response_data).strip()
     except Exception as error:
         return Response(

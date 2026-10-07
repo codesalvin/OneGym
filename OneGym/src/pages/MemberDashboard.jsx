@@ -705,7 +705,7 @@ export function MemberDashboardPage() {
     setPersonalRecords(Array.isArray(data) ? data : []);
   }, [user?.id]);
 
-  const loadTrainerMessages = useCallback(async (trainerId = selectedTrainerId) => {
+  const loadTrainerMessages = useCallback(async (trainerId = selectedTrainerId, { silent = false } = {}) => {
     if (!user?.id || !trainerId) {
       setTrainerMessages([]);
       return;
@@ -722,9 +722,11 @@ export function MemberDashboardPage() {
       setIsTrainerChatError(false);
       setTrainerChatStatus('');
     } catch (error) {
-      setTrainerMessages([]);
-      setIsTrainerChatError(true);
-      setTrainerChatStatus(error instanceof Error ? error.message : 'Unable to load trainer chat.');
+      if (!silent) {
+        setTrainerMessages([]);
+        setIsTrainerChatError(true);
+        setTrainerChatStatus(error instanceof Error ? error.message : 'Unable to load trainer chat.');
+      }
     }
   }, [selectedTrainerId, user?.id]);
 
@@ -849,10 +851,17 @@ export function MemberDashboardPage() {
   }, [selectedTrainerId]);
 
   useEffect(() => {
-    if (selectedTrainerId) {
-      loadTrainerMessages(selectedTrainerId);
+    if (activeTab !== 'trainer-chat' || !selectedTrainerId) {
+      return undefined;
     }
-  }, [loadTrainerMessages, selectedTrainerId]);
+
+    loadTrainerMessages(selectedTrainerId);
+    const interval = window.setInterval(() => {
+      loadTrainerMessages(selectedTrainerId, { silent: true });
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab, loadTrainerMessages, selectedTrainerId]);
 
   useEffect(() => {
     if (!user?.id) {

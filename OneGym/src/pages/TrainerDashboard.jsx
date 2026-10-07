@@ -6,6 +6,7 @@ const API_BASE_URL = import.meta.env.DEV
   : (import.meta.env.VITE_API_BASE_URL || '/api');
 const CLIENT_PROGRESS_TARGET = 12;
 const REFRESH_INTERVAL_MS = 15000;
+const CHAT_REFRESH_INTERVAL_MS = 4000;
 const MEMBER_SIDE_ROLES = new Set(['member', 'pro', 'studio']);
 const emptyClassForm = {
   title: '',
@@ -269,12 +270,20 @@ export function TrainerDashboardPage() {
   }, [conversations, selectedConversationId]);
 
   useEffect(() => {
-    if (selectedConversationId) {
-      loadConversationMessages(selectedConversationId);
-    } else {
-      setConversationMessages([]);
+    if (activeTab !== 'messages' || !selectedConversationId) {
+      if (!selectedConversationId) {
+        setConversationMessages([]);
+      }
+      return undefined;
     }
-  }, [selectedConversationId]);
+
+    loadConversationMessages(selectedConversationId);
+    const interval = window.setInterval(() => {
+      loadConversationMessages(selectedConversationId, { silent: true });
+    }, CHAT_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab, selectedConversationId]);
 
   useEffect(() => {
     messageScrollRef.current?.scrollTo({
@@ -288,7 +297,7 @@ export function TrainerDashboardPage() {
     setIsNavOpen(false);
   }
 
-  async function loadConversationMessages(memberId = selectedConversationId) {
+  async function loadConversationMessages(memberId = selectedConversationId, { silent = false } = {}) {
     if (!storedTrainer?.id || !memberId) {
       setConversationMessages([]);
       return;
@@ -313,9 +322,11 @@ export function TrainerDashboardPage() {
       setIsMessageError(false);
       setMessageStatus('');
     } catch (error) {
-      setConversationMessages([]);
-      setIsMessageError(true);
-      setMessageStatus(error.message);
+      if (!silent) {
+        setConversationMessages([]);
+        setIsMessageError(true);
+        setMessageStatus(error.message);
+      }
     }
   }
 
