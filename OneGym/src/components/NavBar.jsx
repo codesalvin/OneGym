@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import './NavBar.css';
 
 const API_BASE_URL = import.meta.env.DEV
@@ -128,9 +129,9 @@ export function NavBar() {
           </li>
           
           <li><a href="/support">Support</a></li>
-          <li><a href="/pricing">Pricing</a></li>
+          <li><Link to="/pricing">Pricing</Link></li>
         </ul>
-        <a className="nav-pill" href="/pricing">View plans</a>
+        <Link className="nav-pill" to="/pricing">View plans</Link>
         {user ? (
           <div className="profile-menu">
             <button className="profile-trigger" type="button" aria-label="Open profile menu">

@@ -436,20 +436,33 @@
 
 .member-dashboard-page .daily-fuel-ring {
   align-items: center;
-  background:
-    radial-gradient(circle at center, transparent 0 48%, rgba(255, 255, 255, 0.24) 49% 57%, transparent 58%),
-    conic-gradient(#a8b0ac var(--ring-percent, 0%), transparent 0);
   border-radius: 50%;
   display: flex;
   height: 110px;
   justify-content: center;
   margin: 12px auto;
+  position: relative;
   width: 110px;
+}
+
+.member-dashboard-page .daily-fuel-ring::before {
+  background: conic-gradient(
+    var(--green) 0 var(--ring-percent, 0%),
+    rgba(255, 255, 255, 0.22) var(--ring-percent, 0%) 100%
+  );
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 0);
+  position: absolute;
 }
 
 .member-dashboard-page .daily-fuel-ring span {
   font-size: 24px;
   font-weight: 950;
+  position: relative;
+  z-index: 1;
 }
 
 .member-dashboard-page .stats-stack {

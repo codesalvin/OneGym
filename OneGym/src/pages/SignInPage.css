@@ -170,6 +170,40 @@
   border-bottom-color: var(--signin-tertiary);
 }
 
+.signin-password-field {
+  position: relative;
+}
+
+.signin-password-field .signin-input-underlined {
+  padding-right: 44px;
+}
+
+.signin-password-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--signin-on-surface-variant);
+  cursor: pointer;
+  display: inline-flex;
+  height: 40px;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 0;
+  top: 2px;
+  width: 40px;
+}
+
+.signin-password-toggle:hover,
+.signin-password-toggle:focus-visible {
+  color: var(--signin-primary);
+  outline: none;
+}
+
+.signin-password-toggle .material-symbols-outlined {
+  font-size: 22px;
+}
+
 .signin-form-actions {
   display: flex;
   justify-content: space-between;

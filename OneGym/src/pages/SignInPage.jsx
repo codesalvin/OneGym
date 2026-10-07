@@ -89,6 +89,12 @@ export function SignInPage() {
     confirmPassword: '',
   });
   const [resetCodeSent, setResetCodeSent] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState({
+    login: false,
+    signup: false,
+    reset: false,
+    confirm: false,
+  });
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,6 +114,13 @@ export function SignInPage() {
     setForm((current) => ({
       ...current,
       [name]: value,
+    }));
+  }
+
+  function togglePasswordVisibility(field) {
+    setVisiblePasswords((current) => ({
+      ...current,
+      [field]: !current[field],
     }));
   }
 
@@ -461,31 +474,53 @@ export function SignInPage() {
                     <label className="signin-label-caps" htmlFor="reset-password">
                       New Password
                     </label>
-                    <input
-                      className="signin-input-underlined"
-                      id="reset-password"
-                      name="password"
-                      onChange={(event) => updateFormField(setResetForm, event)}
-                      placeholder="Create a new password"
-                      required
-                      type="password"
-                      value={resetForm.password}
-                    />
+                    <div className="signin-password-field">
+                      <input
+                        className="signin-input-underlined"
+                        id="reset-password"
+                        name="password"
+                        onChange={(event) => updateFormField(setResetForm, event)}
+                        placeholder="Create a new password"
+                        required
+                        type={visiblePasswords.reset ? 'text' : 'password'}
+                        value={resetForm.password}
+                      />
+                      <button
+                        aria-label={visiblePasswords.reset ? 'Hide new password' : 'Show new password'}
+                        aria-pressed={visiblePasswords.reset}
+                        className="signin-password-toggle"
+                        onClick={() => togglePasswordVisibility('reset')}
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined">{visiblePasswords.reset ? 'visibility_off' : 'visibility'}</span>
+                      </button>
+                    </div>
                   </div>
                   <div className="signin-input-group">
                     <label className="signin-label-caps" htmlFor="reset-confirm-password">
                       Confirm Password
                     </label>
-                    <input
-                      className="signin-input-underlined"
-                      id="reset-confirm-password"
-                      name="confirmPassword"
-                      onChange={(event) => updateFormField(setResetForm, event)}
-                      placeholder="Repeat new password"
-                      required
-                      type="password"
-                      value={resetForm.confirmPassword}
-                    />
+                    <div className="signin-password-field">
+                      <input
+                        className="signin-input-underlined"
+                        id="reset-confirm-password"
+                        name="confirmPassword"
+                        onChange={(event) => updateFormField(setResetForm, event)}
+                        placeholder="Repeat new password"
+                        required
+                        type={visiblePasswords.confirm ? 'text' : 'password'}
+                        value={resetForm.confirmPassword}
+                      />
+                      <button
+                        aria-label={visiblePasswords.confirm ? 'Hide confirmation password' : 'Show confirmation password'}
+                        aria-pressed={visiblePasswords.confirm}
+                        className="signin-password-toggle"
+                        onClick={() => togglePasswordVisibility('confirm')}
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined">{visiblePasswords.confirm ? 'visibility_off' : 'visibility'}</span>
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
@@ -521,16 +556,27 @@ export function SignInPage() {
                 <label className="signin-label-caps" htmlFor="signin-password">
                   Password
                 </label>
-                <input
-                  className="signin-input-underlined"
-                  id="signin-password"
-                  name="password"
-                  onChange={(event) => updateFormField(setLoginForm, event)}
-                  placeholder="Password"
-                  required
-                  type="password"
-                  value={loginForm.password}
-                />
+                <div className="signin-password-field">
+                  <input
+                    className="signin-input-underlined"
+                    id="signin-password"
+                    name="password"
+                    onChange={(event) => updateFormField(setLoginForm, event)}
+                    placeholder="Password"
+                    required
+                    type={visiblePasswords.login ? 'text' : 'password'}
+                    value={loginForm.password}
+                  />
+                  <button
+                    aria-label={visiblePasswords.login ? 'Hide password' : 'Show password'}
+                    aria-pressed={visiblePasswords.login}
+                    className="signin-password-toggle"
+                    onClick={() => togglePasswordVisibility('login')}
+                    type="button"
+                  >
+                    <span className="material-symbols-outlined">{visiblePasswords.login ? 'visibility_off' : 'visibility'}</span>
+                  </button>
+                </div>
               </div>
               <div className="signin-form-actions">
                 <button className="signin-link-text signin-text-btn" onClick={() => switchForm('reset')} type="button">
@@ -577,16 +623,27 @@ export function SignInPage() {
                 <label className="signin-label-caps" htmlFor="signup-password">
                   Password
                 </label>
-                <input
-                  className="signin-input-underlined"
-                  id="signup-password"
-                  name="password"
-                  onChange={(event) => updateFormField(setSignupForm, event)}
-                  placeholder="Create a secure password"
-                  required
-                  type="password"
-                  value={signupForm.password}
-                />
+                <div className="signin-password-field">
+                  <input
+                    className="signin-input-underlined"
+                    id="signup-password"
+                    name="password"
+                    onChange={(event) => updateFormField(setSignupForm, event)}
+                    placeholder="Create a secure password"
+                    required
+                    type={visiblePasswords.signup ? 'text' : 'password'}
+                    value={signupForm.password}
+                  />
+                  <button
+                    aria-label={visiblePasswords.signup ? 'Hide sign-up password' : 'Show sign-up password'}
+                    aria-pressed={visiblePasswords.signup}
+                    className="signin-password-toggle"
+                    onClick={() => togglePasswordVisibility('signup')}
+                    type="button"
+                  >
+                    <span className="material-symbols-outlined">{visiblePasswords.signup ? 'visibility_off' : 'visibility'}</span>
+                  </button>
+                </div>
               </div>
               <button className="signin-primary-btn signin-join-btn" disabled={isSubmitting} type="submit">
                 {isSubmitting ? 'Creating Account...' : 'Join OneGym'}

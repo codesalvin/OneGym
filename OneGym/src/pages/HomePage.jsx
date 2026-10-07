@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { NavBar } from '../components/NavBar';
 import { Footer } from '../components/Footer';
 import './HomePage.css';
@@ -33,7 +34,7 @@ export function HomePage() {
             <p>OneGym gives members one place to book classes, track meals, log workouts, chat with trainers, and see real progress.</p>
             <div className="hero-ctas">
               <a className="btn btn-primary" href="/signin">Start Training</a>
-              <a className="btn btn-outline" href="/pricing">View Plans</a>
+              <Link className="btn btn-outline" to="/pricing">View Plans</Link>
             </div>
           </div>
         </div>
@@ -65,7 +66,7 @@ export function HomePage() {
             <p>Members should not need five apps to understand their training. OneGym connects bookings, nutrition, workouts, trainer chat, and progress into one calm dashboard.</p>
             <div className="difference-actions">
               <a className="btn btn-primary" href="/signin">Open Member Dashboard</a>
-              <a className="difference-link" href="/pricing">See gym plans</a>
+              <Link className="difference-link" to="/pricing">See gym plans</Link>
             </div>
             <img
               alt="Gym member training with coach in a modern studio"
@@ -200,7 +201,7 @@ export function HomePage() {
             <p>For members, OneGym is progress in one place. For gyms, it is the system that keeps that experience running.</p>
             <div className="cta-btns">
               <a className="btn btn-primary" href="/signin">Start as Member</a>
-              <a className="btn btn-outline" href="/pricing">View Pricing</a>
+              <Link className="btn btn-outline" to="/pricing">View Pricing</Link>
               <a className="btn btn-outline" href="/join-trainer">Trainer Portal</a>
             </div>
           </div>

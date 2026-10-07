@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import './Footer.css';
 
 export function Footer() {
@@ -11,7 +12,7 @@ export function Footer() {
                         <li><a href="#">About us</a></li>
                         <li><a href="#">Contact</a></li>
                         <li><a href="/support">Support</a></li>
-                        <li><a href="/pricing">Pricing</a></li>
+                        <li><Link to="/pricing">Pricing</Link></li>
                         <li><a href="#">Blog</a></li>
                     </ul>
                     <div className="social-icons">

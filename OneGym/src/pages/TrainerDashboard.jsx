@@ -170,6 +170,7 @@ export function TrainerDashboardPage() {
   const [isClassError, setIsClassError] = useState(false);
   const [isCreatingClass, setIsCreatingClass] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const [isAccessVerified, setIsAccessVerified] = useState(false);
 
   const trainerName = useMemo(() => {
     const user = getStoredUser();
@@ -197,6 +198,22 @@ export function TrainerDashboardPage() {
         readApiResponse(applicationsResponse),
         readApiResponse(conversationsResponse),
       ]);
+
+      if (conversationsResponse.status === 401) {
+        localStorage.removeItem('onegymUser');
+        localStorage.removeItem('onegymAuthToken');
+        window.location.replace('/signin?reason=session-expired');
+        return;
+      }
+
+      if (conversationsResponse.status === 403) {
+        window.location.replace('/member-dashboard');
+        return;
+      }
+
+      if (conversationsResponse.ok) {
+        setIsAccessVerified(true);
+      }
 
       if (!usersResponse.ok) {
         throw new Error(usersData?.detail || 'Unable to load users.');
@@ -288,6 +305,11 @@ export function TrainerDashboardPage() {
       }
 
       setConversationMessages(Array.isArray(data) ? data : []);
+      setConversations((current) => current.map((conversation) => (
+        String(conversation.user_id) === String(memberId)
+          ? { ...conversation, unread_count: 0 }
+          : conversation
+      )));
       setIsMessageError(false);
       setMessageStatus('');
     } catch (error) {
@@ -491,6 +513,15 @@ export function TrainerDashboardPage() {
   const selectedConversation = useMemo(() => {
     return conversations.find((conversation) => String(conversation.user_id) === String(selectedConversationId)) || null;
   }, [conversations, selectedConversationId]);
+
+  if (!isAccessVerified) {
+    return (
+      <main className="trainer-access-check" aria-live="polite">
+        <span className="trainer-brand-mark">OG</span>
+        <p>Checking trainer access...</p>
+      </main>
+    );
+  }
 
   return (
     <div className={`trainer-dashboard-page tab-${activeTab} ${isNavOpen ? 'nav-open' : ''}`}>
