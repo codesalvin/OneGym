@@ -683,6 +683,12 @@
   opacity: 0.65;
 }
 
+.trainer-section-title .trainer-cancel-edit {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: var(--line);
+  color: var(--text);
+}
+
 .trainer-work-grid {
   display: grid;
   gap: 18px;
@@ -800,13 +806,52 @@
   text-transform: uppercase;
 }
 
-.trainer-start-action {
-  box-shadow: 0 0 22px rgba(34, 197, 94, 0.22);
-}
-
 .trainer-session-row button {
   min-height: 34px;
   padding: 0 14px;
+}
+
+.trainer-class-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.trainer-class-menu {
+  position: relative;
+}
+
+.trainer-class-menu summary {
+  align-items: center;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  list-style: none;
+  width: 34px;
+}
+
+.trainer-class-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.trainer-class-menu summary:hover,
+.trainer-class-menu[open] summary {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+
+.trainer-class-menu > button {
+  background: #121815;
+  border-color: var(--line);
+  color: var(--text);
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  white-space: nowrap;
+  z-index: 5;
 }
 
 .trainer-empty-state {

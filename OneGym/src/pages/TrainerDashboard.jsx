@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './TrainerDashboard.css';
+import { NotificationBell } from '../components/NotificationBell';
 
 const API_BASE_URL = import.meta.env.DEV
   ? '/api'
@@ -76,6 +77,16 @@ function formatDateTime(value) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function toDateTimeLocalValue(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
 }
 
 function formatMessageTime(value) {
@@ -156,7 +167,6 @@ export function TrainerDashboardPage() {
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [applications, setApplications] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState('');
   const [conversationMessages, setConversationMessages] = useState([]);
@@ -170,7 +180,7 @@ export function TrainerDashboardPage() {
   const [classMessage, setClassMessage] = useState('');
   const [isClassError, setIsClassError] = useState(false);
   const [isCreatingClass, setIsCreatingClass] = useState(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const [editingClassId, setEditingClassId] = useState(null);
   const [isAccessVerified, setIsAccessVerified] = useState(false);
 
   const trainerName = useMemo(() => {
@@ -186,17 +196,15 @@ export function TrainerDashboardPage() {
       const conversationRequest = fetch(`${API_BASE_URL}/trainer-chat/conversations/`, {
         credentials: 'include',
       });
-      const [usersResponse, classesResponse, applicationsResponse, conversationsResponse] = await Promise.all([
+      const [usersResponse, classesResponse, conversationsResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/users/`, { credentials: 'include' }),
         fetch(`${API_BASE_URL}/classes/`, { credentials: 'include' }),
-        fetch(`${API_BASE_URL}/trainer-applications/?status=pending`, { credentials: 'include' }),
         conversationRequest,
       ]);
 
-      const [usersData, classesData, applicationsData, conversationsData] = await Promise.all([
+      const [usersData, classesData, conversationsData] = await Promise.all([
         readApiResponse(usersResponse),
         readApiResponse(classesResponse),
-        readApiResponse(applicationsResponse),
         readApiResponse(conversationsResponse),
       ]);
 
@@ -222,9 +230,6 @@ export function TrainerDashboardPage() {
       if (!classesResponse.ok) {
         throw new Error(classesData?.detail || 'Unable to load schedule.');
       }
-      if (!applicationsResponse.ok) {
-        throw new Error(applicationsData?.detail || 'Unable to load trainer applications.');
-      }
       if (!conversationsResponse.ok) {
         throw new Error(conversationsData?.detail || 'Unable to load trainer messages.');
       }
@@ -246,10 +251,8 @@ export function TrainerDashboardPage() {
 
       setUsers(Array.isArray(usersData) ? usersData : []);
       setClasses(Array.isArray(classesData) ? classesData : []);
-      setApplications(Array.isArray(applicationsData) ? applicationsData : []);
       setConversations(Array.isArray(conversationsData) ? conversationsData : []);
       setClientWorkouts(Object.fromEntries(workoutPairs));
-      setLastUpdatedAt(new Date());
       setDashboardMessage('');
     } catch (error) {
       setDashboardMessage(error.message);
@@ -385,7 +388,27 @@ export function TrainerDashboardPage() {
     }));
   }
 
-  async function createClass(event) {
+  function editClass(item) {
+    setEditingClassId(item.id);
+    setClassForm({
+      title: item.title,
+      room: item.room,
+      scheduleTime: toDateTimeLocalValue(item.schedule_time),
+      slots: String(item.slots),
+    });
+    setClassMessage('');
+    setIsClassError(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelClassEdit() {
+    setEditingClassId(null);
+    setClassForm(emptyClassForm);
+    setClassMessage('');
+    setIsClassError(false);
+  }
+
+  async function saveClass(event) {
     event.preventDefault();
 
     setIsCreatingClass(true);
@@ -393,8 +416,10 @@ export function TrainerDashboardPage() {
     setClassMessage('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/classes/`, {
-        method: 'POST',
+      const response = await fetch(
+        editingClassId ? `${API_BASE_URL}/classes/${editingClassId}/` : `${API_BASE_URL}/classes/`,
+        {
+        method: editingClassId ? 'PATCH' : 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -405,7 +430,8 @@ export function TrainerDashboardPage() {
           schedule_time: classForm.scheduleTime,
           slots: Number(classForm.slots),
         }),
-      });
+        },
+      );
       const data = await readApiResponse(response);
 
       if (!response.ok) {
@@ -413,7 +439,8 @@ export function TrainerDashboardPage() {
       }
 
       setClassForm(emptyClassForm);
-      setClassMessage(data?.detail || 'Class created successfully.');
+      setEditingClassId(null);
+      setClassMessage(data?.detail || (editingClassId ? 'Class updated successfully.' : 'Class created successfully.'));
       await loadDashboardData();
     } catch (error) {
       setIsClassError(true);
@@ -464,12 +491,13 @@ export function TrainerDashboardPage() {
   const scheduleRows = useMemo(() => {
     const now = new Date();
     const source = todayClasses.length ? todayClasses : classes.slice(0, 5);
-    return source.map((item, index) => ({
+    return source.map((item) => ({
+      ...item,
       id: item.id,
       time: formatTime(item.schedule_time),
       client: item.instructor_name || trainerName,
       session: item.title,
-      state: new Date(item.schedule_time) < now ? 'Complete' : index === 0 ? 'Start' : `${item.available_slots} slots`,
+      state: new Date(item.schedule_time) < now ? 'Complete' : `${item.available_slots} slots`,
     }));
   }, [classes, todayClasses, trainerName]);
 
@@ -588,10 +616,7 @@ export function TrainerDashboardPage() {
               <span className="material-symbols-outlined">search</span>
               <input placeholder="Search clients..." type="search" />
             </label>
-            <button className="trainer-icon-with-badge" aria-label="Notifications" type="button">
-              <span className="material-symbols-outlined">notifications</span>
-              {unreadMessageCount > 0 && <strong>{unreadMessageCount}</strong>}
-            </button>
+            <NotificationBell apiBaseUrl={API_BASE_URL} onOpenMessage={() => openTrainerTab('messages')} />
             <button aria-label="Settings" type="button"><span className="material-symbols-outlined">settings</span></button>
             <div className="trainer-avatar">{trainerInitials}</div>
           </div>
@@ -639,10 +664,13 @@ export function TrainerDashboardPage() {
           <div className="trainer-section-title">
             <div>
               <p className="trainer-eyebrow">Session Management</p>
-              <h2>Create Class</h2>
+              <h2>{editingClassId ? 'Edit Class' : 'Create Class'}</h2>
             </div>
+            {editingClassId && (
+              <button className="trainer-cancel-edit" onClick={cancelClassEdit} type="button">Cancel edit</button>
+            )}
           </div>
-          <form className="trainer-create-class-form" onSubmit={createClass}>
+          <form className="trainer-create-class-form" onSubmit={saveClass}>
             <label>
               Class Title
               <input name="title" onChange={updateClassField} placeholder="Power Flow Yoga" required type="text" value={classForm.title} />
@@ -660,8 +688,8 @@ export function TrainerDashboardPage() {
               <input min="1" name="slots" onChange={updateClassField} required type="number" value={classForm.slots} />
             </label>
             <button disabled={isCreatingClass} type="submit">
-              {isCreatingClass ? 'Creating...' : 'Create Class'}
-              <span className="material-symbols-outlined">add</span>
+              {isCreatingClass ? 'Saving...' : editingClassId ? 'Save Changes' : 'Create Class'}
+              <span className="material-symbols-outlined">{editingClassId ? 'save' : 'add'}</span>
             </button>
           </form>
           {classMessage && (
@@ -673,7 +701,6 @@ export function TrainerDashboardPage() {
           <article className="trainer-schedule-panel" id="schedule">
             <div className="trainer-panel-heading">
               <h2>Today's Schedule</h2>
-              <button aria-label="More schedule options" type="button"><span className="material-symbols-outlined">more_horiz</span></button>
             </div>
             <div className="trainer-schedule-list-real">
               {scheduleRows.length ? scheduleRows.map((item) => (
@@ -683,11 +710,15 @@ export function TrainerDashboardPage() {
                     <strong>{item.client}</strong>
                     <small>{item.session}</small>
                   </div>
-                    {item.state === 'Start' ? (
-                      <button className="trainer-start-action" type="button">Start</button>
-                    ) : (
+                    <div className="trainer-class-actions">
                       <span className={`trainer-status-chip ${item.state === 'Complete' ? 'complete' : ''}`}>{item.state}</span>
-                    )}
+                      {String(item.trainer_id) === String(storedTrainer.id) && (
+                        <details className="trainer-class-menu">
+                          <summary aria-label={`Actions for ${item.session}`}><span className="material-symbols-outlined">more_horiz</span></summary>
+                          <button onClick={() => editClass(item)} type="button">Edit class</button>
+                        </details>
+                      )}
+                    </div>
                   </div>
                 )) : (
                 <div className="trainer-empty-state">
@@ -759,7 +790,6 @@ export function TrainerDashboardPage() {
             <article className="trainer-schedule-panel">
               <div className="trainer-panel-heading">
                 <h2>Class Schedule</h2>
-                <button aria-label="More schedule options" type="button"><span className="material-symbols-outlined">more_horiz</span></button>
               </div>
               <div className="trainer-schedule-list-real">
                 {scheduleRows.length ? scheduleRows.map((item) => (
@@ -769,11 +799,15 @@ export function TrainerDashboardPage() {
                       <strong>{item.client}</strong>
                       <small>{item.session}</small>
                     </div>
-                    {item.state === 'Start' ? (
-                      <button className="trainer-start-action" type="button">Start</button>
-                    ) : (
+                    <div className="trainer-class-actions">
                       <span className={`trainer-status-chip ${item.state === 'Complete' ? 'complete' : ''}`}>{item.state}</span>
-                    )}
+                      {String(item.trainer_id) === String(storedTrainer.id) && (
+                        <details className="trainer-class-menu">
+                          <summary aria-label={`Actions for ${item.session}`}><span className="material-symbols-outlined">more_horiz</span></summary>
+                          <button onClick={() => editClass(item)} type="button">Edit class</button>
+                        </details>
+                      )}
+                    </div>
                   </div>
                 )) : (
                   <div className="trainer-empty-state">
@@ -982,9 +1016,6 @@ export function TrainerDashboardPage() {
             ))}
           </div>
         </section>}
-        <p className="trainer-live-note">
-          {lastUpdatedAt ? `Live data refreshed ${lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}. ${applications.length} pending trainer applications.` : 'Loading live trainer data...'}
-        </p>
       </main>
     </div>
   );

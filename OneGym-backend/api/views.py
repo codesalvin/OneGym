@@ -846,6 +846,16 @@ def trainer_chat_message(request):
 
         cursor.execute(
             '''
+            INSERT INTO notifications
+                (user_id, notification_type, title, body, created_at)
+            VALUES
+                (%s, 'message', %s, %s, CURRENT_TIMESTAMP)
+            ''',
+            [recipient_id, f"New message from {actor['username']}", body],
+        )
+
+        cursor.execute(
+            '''
             SELECT
                 message.id,
                 message.sender_id,
@@ -867,6 +877,52 @@ def trainer_chat_message(request):
 
     serializer = TrainerChatMessageSerializer(message)
     return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'PATCH'])
+def notifications(request):
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    with connection.cursor() as cursor:
+        if request.method == 'GET':
+            cursor.execute(
+                '''
+                SELECT id, notification_type, title, body, read_at, created_at
+                FROM notifications
+                WHERE user_id = %s
+                ORDER BY created_at DESC, id DESC
+                LIMIT 50
+                ''',
+                [actor['id']],
+            )
+            columns = ['id', 'notification_type', 'title', 'body', 'read_at', 'created_at']
+            return Response([dict(zip(columns, row)) for row in cursor.fetchall()])
+
+        notification_id = request.data.get('notification_id')
+        if notification_id:
+            cursor.execute(
+                '''
+                UPDATE notifications
+                SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+                WHERE id = %s AND user_id = %s
+                ''',
+                [notification_id, actor['id']],
+            )
+            if not cursor.rowcount:
+                return Response({'detail': 'Notification not found.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            cursor.execute(
+                '''
+                UPDATE notifications
+                SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+                WHERE user_id = %s
+                ''',
+                [actor['id']],
+            )
+
+    return Response({'detail': 'Notification marked as read.'})
 
 
 @api_view(['POST'])
@@ -2191,6 +2247,76 @@ def class_list(request):
 
     serializer = FitnessClassSerializer(classes, many=True)
     return Response(serializer.data)
+
+
+@api_view(['PATCH'])
+def class_detail(request, class_id):
+    user = get_authenticated_user(request)
+    if not user:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if user['role'] not in ['trainer', 'admin', 'owner']:
+        return Response({'detail': 'Only trainers can edit classes.'}, status=status.HTTP_403_FORBIDDEN)
+
+    serializer = FitnessClassCreateSerializer(data={
+        **request.data,
+        'trainer_id': user['id'],
+    })
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    raw_schedule_time = str(request.data.get('schedule_time') or '')
+
+    try:
+        local_schedule_time = datetime.fromisoformat(raw_schedule_time)
+    except ValueError:
+        return Response({'detail': 'Class time is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if local_schedule_time.tzinfo is not None:
+        local_schedule_time = timezone.localtime(local_schedule_time).replace(tzinfo=None)
+
+    if local_schedule_time <= datetime.now():
+        return Response({'detail': 'Class time must be in the future.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT trainer_id FROM classes WHERE id = %s LIMIT 1', [class_id])
+        class_row = cursor.fetchone()
+        if not class_row:
+            return Response({'detail': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user['role'] == 'trainer' and class_row[0] != user['id']:
+            return Response({'detail': 'You can only edit your own classes.'}, status=status.HTTP_403_FORBIDDEN)
+
+        cursor.execute('SELECT COUNT(*) FROM class_bookings WHERE class_id = %s', [class_id])
+        booked_slots = cursor.fetchone()[0]
+        if data['slots'] < booked_slots:
+            return Response(
+                {'detail': f'Slots cannot be lower than the {booked_slots} existing bookings.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cursor.execute(
+            '''
+            UPDATE classes
+            SET title = %s,
+                room = %s,
+                schedule_time = %s,
+                start_time = %s,
+                slots = %s,
+                capacity = %s
+            WHERE id = %s
+            ''',
+            [
+                data['title'],
+                data['room'],
+                local_schedule_time,
+                local_schedule_time,
+                data['slots'],
+                data['slots'],
+                class_id,
+            ],
+        )
+
+    return Response({'detail': 'Class updated successfully.'})
 
 
 @api_view(['POST'])

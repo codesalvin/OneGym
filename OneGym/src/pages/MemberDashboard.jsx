@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import './MemberDashboard.css';
+import { NotificationBell } from '../components/NotificationBell';
 import './WorkoutHistory.css';
 
 const API_BASE_URL = import.meta.env.DEV
@@ -1878,9 +1879,7 @@ export function MemberDashboardPage() {
                 <span className="material-symbols-outlined search-icon">search</span>
                 <input className="search-input" placeholder="Search classes, meals..." type="text" />
               </div>
-              <button className="btn btn-secondary icon-button" type="button">
-                <span className="material-symbols-outlined">notifications</span>
-              </button>
+              <NotificationBell apiBaseUrl={API_BASE_URL} onOpenMessage={() => openDashboardTab('trainer-chat')} />
               <button className="top-avatar-link" onClick={() => openDashboardTab('profile')} type="button">
                 {profilePhotoUrl ? <img alt="" className="av top-avatar avatar-img" src={profilePhotoUrl} /> : <div className="av top-avatar">{initials}</div>}
               </button>
