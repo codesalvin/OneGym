@@ -20,4 +20,5 @@ requests==2.34.2
 sqlparse==0.5.5
 tzdata==2026.2
 urllib3==2.7.0
+vercel>=0.13,<1
 whitenoise[brotli]>=6.8,<7

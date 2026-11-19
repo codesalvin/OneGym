@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './TrainerDashboard.css';
 import { NotificationBell } from '../components/NotificationBell';
+import logoImage from '../../images/logo.png';
 
 const API_BASE_URL = import.meta.env.DEV
   ? '/api'
   : (import.meta.env.VITE_API_BASE_URL || '/api');
+const API_ROOT = API_BASE_URL.replace(/\/api\/?$/, '');
 const CLIENT_PROGRESS_TARGET = 12;
 const REFRESH_INTERVAL_MS = 15000;
 const CHAT_REFRESH_INTERVAL_MS = 4000;
@@ -15,13 +17,6 @@ const emptyClassForm = {
   scheduleTime: '',
   slots: '12',
 };
-
-const programs = [
-  { icon: 'bolt', title: 'Metabolic Prime', clients: 12, description: 'High-intensity conditioning for advanced athletes.' },
-  { icon: 'balance', title: 'Foundations 101', clients: 8, description: 'Movement fundamentals with corrective exercise focus.' },
-  { icon: 'fitness_center', title: 'Power & Load', clients: 15, description: 'Progressive overload cycles for compound strength.' },
-  { icon: 'self_improvement', title: 'Resilience Flow', clients: 32, description: 'Mobility and recovery sessions for rest days.' },
-];
 
 async function readApiResponse(response) {
   if (response.status === 401) {
@@ -36,12 +31,33 @@ async function readApiResponse(response) {
     return null;
   }
 
-  return JSON.parse(text);
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    throw new Error(
+      response.ok
+        ? 'The server returned an unexpected response.'
+        : `The server could not process the request (${response.status}).`,
+    );
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error('The server returned an invalid response.');
+  }
 }
 
 function getStoredUser() {
   const storedUser = localStorage.getItem('onegymUser');
   return storedUser ? JSON.parse(storedUser) : null;
+}
+
+function resolveMediaUrl(value) {
+  if (!value || /^(?:https?:|blob:|data:)/i.test(value)) {
+    return value || '';
+  }
+
+  return `${API_ROOT}${value.startsWith('/') ? '' : '/'}${value}`;
 }
 
 function getInitials(user) {
@@ -162,9 +178,13 @@ function getClassHours(item) {
 export function TrainerDashboardPage() {
   const [activeTab, setActiveTab] = useState(() => {
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return ['overview', 'schedule', 'clients', 'progress', 'programs', 'messages'].includes(tab) ? tab : 'overview';
+    return ['overview', 'schedule', 'clients', 'progress', 'messages'].includes(tab) ? tab : 'overview';
   });
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [autoRefreshMessages, setAutoRefreshMessages] = useState(() => (
+    localStorage.getItem('onegymTrainerAutoRefreshMessages') !== 'false'
+  ));
   const [users, setUsers] = useState([]);
   const [classes, setClasses] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -182,14 +202,24 @@ export function TrainerDashboardPage() {
   const [isCreatingClass, setIsCreatingClass] = useState(false);
   const [editingClassId, setEditingClassId] = useState(null);
   const [isAccessVerified, setIsAccessVerified] = useState(false);
+  const [storedTrainer, setStoredTrainer] = useState(() => getStoredUser() || {});
+  const [profilePhotoFile, setProfilePhotoFile] = useState(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState(() => (
+    resolveMediaUrl(getStoredUser()?.profile_photo_url || '')
+  ));
+  const [profilePhotoMessage, setProfilePhotoMessage] = useState('');
+  const [isProfilePhotoError, setIsProfilePhotoError] = useState(false);
+  const [isSavingProfilePhoto, setIsSavingProfilePhoto] = useState(false);
 
   const trainerName = useMemo(() => {
-    const user = getStoredUser();
-    return user.username || user.email?.split('@')[0] || 'Trainer';
-  }, []);
-  const storedTrainer = useMemo(() => getStoredUser() || {}, []);
-  const trainerInitials = useMemo(() => getInitials(getStoredUser() || { username: trainerName }), [trainerName]);
+    return storedTrainer.username || storedTrainer.email?.split('@')[0] || 'Trainer';
+  }, [storedTrainer]);
+  const trainerInitials = useMemo(() => getInitials(storedTrainer || { username: trainerName }), [storedTrainer, trainerName]);
+  const trainerProfilePhoto = profilePhotoPreview || resolveMediaUrl(storedTrainer.profile_photo_url || '');
   const messageScrollRef = useRef(null);
+  const settingsRef = useRef(null);
+  const profilePhotoInputRef = useRef(null);
+  const pendingReadConversationIdsRef = useRef(new Set());
 
   async function loadDashboardData() {
     try {
@@ -251,7 +281,21 @@ export function TrainerDashboardPage() {
 
       setUsers(Array.isArray(usersData) ? usersData : []);
       setClasses(Array.isArray(classesData) ? classesData : []);
-      setConversations(Array.isArray(conversationsData) ? conversationsData : []);
+      const nextConversations = Array.isArray(conversationsData) ? conversationsData.map((conversation) => {
+        const conversationId = String(conversation.user_id);
+        if (!pendingReadConversationIdsRef.current.has(conversationId)) {
+          return conversation;
+        }
+
+        if (Number(conversation.unread_count || 0) === 0) {
+          pendingReadConversationIdsRef.current.delete(conversationId);
+          return conversation;
+        }
+
+        return { ...conversation, unread_count: 0 };
+      }) : [];
+
+      setConversations(nextConversations);
       setClientWorkouts(Object.fromEntries(workoutPairs));
       setDashboardMessage('');
     } catch (error) {
@@ -281,12 +325,49 @@ export function TrainerDashboardPage() {
     }
 
     loadConversationMessages(selectedConversationId);
-    const interval = window.setInterval(() => {
+    const interval = autoRefreshMessages ? window.setInterval(() => {
       loadConversationMessages(selectedConversationId, { silent: true });
-    }, CHAT_REFRESH_INTERVAL_MS);
+    }, CHAT_REFRESH_INTERVAL_MS) : null;
 
-    return () => window.clearInterval(interval);
-  }, [activeTab, selectedConversationId]);
+    return () => {
+      if (interval) {
+        window.clearInterval(interval);
+      }
+    };
+  }, [activeTab, autoRefreshMessages, selectedConversationId]);
+
+  useEffect(() => {
+    localStorage.setItem('onegymTrainerAutoRefreshMessages', String(autoRefreshMessages));
+  }, [autoRefreshMessages]);
+
+  useEffect(() => () => {
+    if (profilePhotoPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(profilePhotoPreview);
+    }
+  }, [profilePhotoPreview]);
+
+  useEffect(() => {
+    if (!isSettingsOpen) {
+      return undefined;
+    }
+
+    function closeSettings(event) {
+      if (event.type === 'keydown' && event.key !== 'Escape') {
+        return;
+      }
+      if (event.type === 'mousedown' && settingsRef.current?.contains(event.target)) {
+        return;
+      }
+      setIsSettingsOpen(false);
+    }
+
+    document.addEventListener('mousedown', closeSettings);
+    document.addEventListener('keydown', closeSettings);
+    return () => {
+      document.removeEventListener('mousedown', closeSettings);
+      document.removeEventListener('keydown', closeSettings);
+    };
+  }, [isSettingsOpen]);
 
   useEffect(() => {
     messageScrollRef.current?.scrollTo({
@@ -298,6 +379,16 @@ export function TrainerDashboardPage() {
   function openTrainerTab(tabId) {
     setActiveTab(tabId);
     setIsNavOpen(false);
+  }
+
+  function markConversationReadLocally(memberId) {
+    const conversationId = String(memberId);
+    pendingReadConversationIdsRef.current.add(conversationId);
+    setConversations((current) => current.map((conversation) => (
+      String(conversation.user_id) === conversationId
+        ? { ...conversation, unread_count: 0 }
+        : conversation
+    )));
   }
 
   async function loadConversationMessages(memberId = selectedConversationId, { silent = false } = {}) {
@@ -317,11 +408,7 @@ export function TrainerDashboardPage() {
       }
 
       setConversationMessages(Array.isArray(data) ? data : []);
-      setConversations((current) => current.map((conversation) => (
-        String(conversation.user_id) === String(memberId)
-          ? { ...conversation, unread_count: 0 }
-          : conversation
-      )));
+      markConversationReadLocally(memberId);
       setIsMessageError(false);
       setMessageStatus('');
     } catch (error) {
@@ -377,6 +464,89 @@ export function TrainerDashboardPage() {
       setMessageInput(body);
     } finally {
       setIsSendingMessage(false);
+    }
+  }
+
+  async function signOutTrainer() {
+    try {
+      await fetch(`${API_BASE_URL}/auth/signout/`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } finally {
+      localStorage.removeItem('onegymAuthToken');
+      localStorage.removeItem('onegymUser');
+      window.dispatchEvent(new Event('onegym-auth-change'));
+      window.location.replace('/signin');
+    }
+  }
+
+  function chooseProfilePhoto(event) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setIsProfilePhotoError(true);
+      setProfilePhotoMessage('Choose an image file.');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setIsProfilePhotoError(true);
+      setProfilePhotoMessage('Profile photo must be 4MB or smaller.');
+      return;
+    }
+
+    if (profilePhotoPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(profilePhotoPreview);
+    }
+    setProfilePhotoFile(file);
+    setProfilePhotoPreview(URL.createObjectURL(file));
+    setIsProfilePhotoError(false);
+    setProfilePhotoMessage('Photo ready to save.');
+  }
+
+  async function saveTrainerProfilePhoto() {
+    if (!storedTrainer.id || !profilePhotoFile || isSavingProfilePhoto) {
+      return;
+    }
+
+    setIsSavingProfilePhoto(true);
+    setIsProfilePhotoError(false);
+    setProfilePhotoMessage('');
+
+    try {
+      const payload = new FormData();
+      payload.append('profile_photo', profilePhotoFile);
+      const response = await fetch(`${API_BASE_URL}/users/${storedTrainer.id}/`, {
+        method: 'PATCH',
+        credentials: 'include',
+        body: payload,
+      });
+      const data = await readApiResponse(response);
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Unable to save profile photo.');
+      }
+
+      const updatedTrainer = {
+        ...storedTrainer,
+        ...data,
+        profile_photo_url: resolveMediaUrl(data.profile_photo_url || ''),
+      };
+      setStoredTrainer(updatedTrainer);
+      setProfilePhotoFile(null);
+      setProfilePhotoPreview(updatedTrainer.profile_photo_url);
+      localStorage.setItem('onegymUser', JSON.stringify(updatedTrainer));
+      window.dispatchEvent(new Event('onegym-auth-change'));
+      if (profilePhotoInputRef.current) {
+        profilePhotoInputRef.current.value = '';
+      }
+      setProfilePhotoMessage('Profile photo updated.');
+    } catch (error) {
+      setIsProfilePhotoError(true);
+      setProfilePhotoMessage(error.message || 'Unable to save profile photo.');
+    } finally {
+      setIsSavingProfilePhoto(false);
     }
   }
 
@@ -451,7 +621,6 @@ export function TrainerDashboardPage() {
   }
 
   const memberUsers = useMemo(() => users.filter((user) => MEMBER_SIDE_ROLES.has(user.role)), [users]);
-  const trainerUsers = useMemo(() => users.filter((user) => user.role === 'trainer'), [users]);
   const thisWeekClasses = useMemo(() => classes.filter((item) => isThisWeek(item.schedule_time)), [classes]);
   const todayClasses = useMemo(() => classes.filter((item) => isToday(item.schedule_time)).slice(0, 5), [classes]);
 
@@ -480,14 +649,6 @@ export function TrainerDashboardPage() {
     });
   }, [classes, clientWorkouts, memberUsers]);
 
-  const averageProgress = useMemo(() => {
-    if (!clientCards.length) {
-      return 0;
-    }
-
-    return Math.round(clientCards.reduce((total, client) => total + client.progress, 0) / clientCards.length);
-  }, [clientCards]);
-
   const scheduleRows = useMemo(() => {
     const now = new Date();
     const source = todayClasses.length ? todayClasses : classes.slice(0, 5);
@@ -515,7 +676,6 @@ export function TrainerDashboardPage() {
     return Math.round((booked / slots) * 100);
   }, [thisWeekClasses]);
   const clientsNeedingAttention = useMemo(() => clientCards.filter((client) => client.progress < 35).length, [clientCards]);
-  const totalClientMinutes = useMemo(() => clientCards.reduce((total, client) => total + Number(client.totalMinutes || 0), 0), [clientCards]);
   const sessionHours = useMemo(() => {
     return thisWeekClasses.reduce((total, item) => total + getClassHours(item), 0);
   }, [thisWeekClasses]);
@@ -529,7 +689,6 @@ export function TrainerDashboardPage() {
     { id: 'schedule', label: 'Sessions', icon: 'calendar_today' },
     { id: 'clients', label: 'Clients', icon: 'group' },
     { id: 'progress', label: 'Progress', icon: 'monitoring' },
-    { id: 'programs', label: 'Programs', icon: 'fitness_center' },
     { id: 'messages', label: 'Messages', icon: 'chat_bubble', badge: unreadMessageCount },
   ];
   const tabTitle = {
@@ -537,7 +696,6 @@ export function TrainerDashboardPage() {
     schedule: 'Sessions',
     clients: 'Clients',
     progress: 'Progress',
-    programs: 'Programs',
     messages: 'Trainer Chat',
   }[activeTab];
   const tabDescription = {
@@ -545,7 +703,6 @@ export function TrainerDashboardPage() {
     schedule: `Welcome back, ${trainerName}. Plan classes and prevent schedule conflicts.`,
     clients: `Welcome back, ${trainerName}. Track client progress and next sessions.`,
     progress: `Welcome back, ${trainerName}. Review client milestones and training consistency.`,
-    programs: `Welcome back, ${trainerName}. Manage programs for your members.`,
     messages: `Welcome back, ${trainerName}. Message members about classes, form, recovery, and session prep.`,
   }[activeTab];
 
@@ -556,7 +713,7 @@ export function TrainerDashboardPage() {
   if (!isAccessVerified) {
     return (
       <main className="trainer-access-check" aria-live="polite">
-        <span className="trainer-brand-mark">OG</span>
+        <span className="trainer-brand-mark"><img alt="OneGym" src={logoImage} /></span>
         <p>Checking trainer access...</p>
       </main>
     );
@@ -567,7 +724,7 @@ export function TrainerDashboardPage() {
       <button aria-label="Close sidebar" className="trainer-backdrop" onClick={() => setIsNavOpen(false)} type="button" />
       <aside className="trainer-sidebar">
         <a className="trainer-brand" href="/">
-          <span className="trainer-brand-mark">OG</span>
+          <span className="trainer-brand-mark"><img alt="OneGym" src={logoImage} /></span>
           <span className="trainer-brand-text">
             <strong>OneGym</strong>
             <small>Trainer Space</small>
@@ -600,7 +757,7 @@ export function TrainerDashboardPage() {
               <span className="material-symbols-outlined">menu</span>
             </button>
             <a className="trainer-mobile-brand" href="/">
-              <span className="trainer-brand-mark">OG</span>
+              <span className="trainer-brand-mark"><img alt="OneGym" src={logoImage} /></span>
               <span className="trainer-brand-text">
                 <strong>OneGym</strong>
                 <small>Trainer Space</small>
@@ -617,8 +774,87 @@ export function TrainerDashboardPage() {
               <input placeholder="Search clients..." type="search" />
             </label>
             <NotificationBell apiBaseUrl={API_BASE_URL} onOpenMessage={() => openTrainerTab('messages')} />
-            <button aria-label="Settings" type="button"><span className="material-symbols-outlined">settings</span></button>
-            <div className="trainer-avatar">{trainerInitials}</div>
+            <div className="trainer-settings-menu" ref={settingsRef}>
+              <button
+                aria-expanded={isSettingsOpen}
+                aria-label="Settings"
+                className={`trainer-settings-button ${isSettingsOpen ? 'active' : ''}`}
+                onClick={() => setIsSettingsOpen((current) => !current)}
+                type="button"
+              >
+                <span className="material-symbols-outlined">settings</span>
+              </button>
+              {isSettingsOpen && (
+                <section aria-label="Trainer settings" className="trainer-settings-panel" role="dialog">
+                  <header>
+                    <div>
+                      <p className="trainer-eyebrow">Preferences</p>
+                      <h2>Trainer settings</h2>
+                    </div>
+                    <button aria-label="Close settings" onClick={() => setIsSettingsOpen(false)} type="button">
+                      <span className="material-symbols-outlined">close</span>
+                    </button>
+                  </header>
+                  <div className="trainer-settings-account">
+                    <button
+                      aria-label="Choose trainer profile photo"
+                      className="trainer-profile-photo-button"
+                      onClick={() => profilePhotoInputRef.current?.click()}
+                      type="button"
+                    >
+                      {trainerProfilePhoto ? <img alt={trainerName} src={trainerProfilePhoto} /> : <span>{trainerInitials}</span>}
+                      <i className="material-symbols-outlined">photo_camera</i>
+                    </button>
+                    <input
+                      accept="image/jpeg,image/png,image/webp"
+                      className="trainer-profile-photo-input"
+                      onChange={chooseProfilePhoto}
+                      ref={profilePhotoInputRef}
+                      type="file"
+                    />
+                    <div>
+                      <strong>{trainerName}</strong>
+                      <small>{storedTrainer.email || 'Trainer account'}</small>
+                    </div>
+                  </div>
+                  {profilePhotoMessage && (
+                    <p className={`trainer-profile-photo-status ${isProfilePhotoError ? 'error' : ''}`}>
+                      {profilePhotoMessage}
+                    </p>
+                  )}
+                  {profilePhotoFile && (
+                    <button
+                      className="trainer-profile-photo-save"
+                      disabled={isSavingProfilePhoto}
+                      onClick={saveTrainerProfilePhoto}
+                      type="button"
+                    >
+                      {isSavingProfilePhoto ? 'Saving photo...' : 'Save profile photo'}
+                    </button>
+                  )}
+                  <button
+                    aria-checked={autoRefreshMessages}
+                    className="trainer-setting-toggle"
+                    onClick={() => setAutoRefreshMessages((current) => !current)}
+                    role="switch"
+                    type="button"
+                  >
+                    <span>
+                      <strong>Auto-refresh messages</strong>
+                      <small>Check for new messages every few seconds.</small>
+                    </span>
+                    <i className={autoRefreshMessages ? 'active' : ''}><b /></i>
+                  </button>
+                  <button className="trainer-settings-signout" onClick={signOutTrainer} type="button">
+                    <span className="material-symbols-outlined">logout</span>
+                    Sign out
+                  </button>
+                </section>
+              )}
+            </div>
+            <div className="trainer-avatar">
+              {trainerProfilePhoto ? <img alt={trainerName} src={trainerProfilePhoto} /> : trainerInitials}
+            </div>
           </div>
         </header>
 
@@ -906,7 +1142,10 @@ export function TrainerDashboardPage() {
                 <button
                   className={`${conversation.unread_count > 0 ? 'unread' : ''} ${String(selectedConversationId) === String(conversation.user_id) ? 'active' : ''}`}
                   key={conversation.user_id}
-                  onClick={() => setSelectedConversationId(String(conversation.user_id))}
+                  onClick={() => {
+                    setSelectedConversationId(String(conversation.user_id));
+                    markConversationReadLocally(conversation.user_id);
+                  }}
                   type="button"
                 >
                   <span className="trainer-message-avatar">{getInitials(conversation)}</span>
@@ -994,28 +1233,6 @@ export function TrainerDashboardPage() {
           </div>
         </section>}
 
-        {activeTab === 'programs' && <section className="trainer-programs-section" id="programs">
-          <div className="trainer-section-title">
-            <div>
-              <p className="trainer-eyebrow">Personalized Programming</p>
-              <h2>Assigned Programs</h2>
-            </div>
-            <button className="trainer-panel-link" type="button">Browse Library</button>
-          </div>
-          <div className="trainer-program-grid-real">
-            {programs.map((program) => (
-              <article key={program.title}>
-                <span className="material-symbols-outlined">{program.icon}</span>
-                <h3>{program.title}</h3>
-                <p>{program.description}</p>
-                <footer>
-                  <small>{Math.min(program.clients, memberUsers.length)} Clients</small>
-                  <button type="button">Assign</button>
-                </footer>
-              </article>
-            ))}
-          </div>
-        </section>}
       </main>
     </div>
   );

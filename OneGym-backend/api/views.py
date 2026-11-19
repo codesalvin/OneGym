@@ -19,6 +19,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 from pathlib import Path
 import re
 import secrets
@@ -1064,18 +1065,46 @@ def save_meal_photo(uploaded_file):
     return default_storage.url(saved_path)
 
 
-def save_profile_photo(uploaded_file):
+def save_profile_photo(uploaded_file, oidc_token=''):
     if not uploaded_file:
         return None
 
-    if uploaded_file.size > 5 * 1024 * 1024:
-        raise ValueError('Profile photo must be 5MB or smaller.')
+    if uploaded_file.size > 4 * 1024 * 1024:
+        raise ValueError('Profile photo must be 4MB or smaller.')
     if uploaded_file.content_type and not uploaded_file.content_type.startswith('image/'):
         raise ValueError('Profile photo must be an image file.')
 
     extension = Path(uploaded_file.name).suffix.lower() or '.jpg'
     filename = f'profile_photos/{secrets.token_urlsafe(16)}{extension}'
-    saved_path = default_storage.save(filename, ContentFile(uploaded_file.read()))
+    file_data = uploaded_file.read()
+    blob_token = os.environ.get('BLOB_READ_WRITE_TOKEN', '')
+    blob_store_id = os.environ.get('BLOB_STORE_ID', '')
+
+    if blob_token or blob_store_id:
+        try:
+            from vercel.blob import put_blob
+            from vercel.headers import set_headers
+
+            set_headers({'x-vercel-oidc-token': oidc_token} if oidc_token else None)
+            try:
+                blob = put_blob(
+                    filename,
+                    file_data,
+                    access='public',
+                    content_length=len(file_data),
+                    content_type=uploaded_file.content_type or 'image/jpeg',
+                    add_random_suffix=True,
+                )
+            finally:
+                set_headers(None)
+            return blob.url
+        except Exception as error:
+            raise ValueError('Profile photo storage is temporarily unavailable.') from error
+
+    if os.environ.get('VERCEL'):
+        raise ValueError('Profile photo storage has not been configured yet.')
+
+    saved_path = default_storage.save(filename, ContentFile(file_data))
     return default_storage.url(saved_path)
 
 
@@ -2012,7 +2041,10 @@ def user_detail(request, user_id):
         uploaded_file = request.FILES.get('profile_photo')
         if uploaded_file:
             try:
-                profile_photo_url = save_profile_photo(uploaded_file)
+                profile_photo_url = save_profile_photo(
+                    uploaded_file,
+                    request.headers.get('x-vercel-oidc-token', ''),
+                )
             except ValueError as error:
                 return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 

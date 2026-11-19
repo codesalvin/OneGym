@@ -105,6 +105,31 @@
   width: 42px;
 }
 
+.trainer-brand-mark {
+  background: #f5f5f4;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  padding: 2px;
+}
+
+.trainer-brand-mark img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.trainer-avatar {
+  overflow: hidden;
+}
+
+.trainer-avatar img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
 .trainer-brand-text strong {
   display: block;
   font-size: 16px;
@@ -338,7 +363,8 @@
   width: 100%;
 }
 
-.trainer-top-actions > button {
+.trainer-top-actions > button,
+.trainer-settings-button {
   align-items: center;
   background: rgba(255, 255, 255, 0.045);
   border: 1px solid var(--line);
@@ -350,6 +376,244 @@
   justify-content: center;
   position: relative;
   width: 42px;
+}
+
+.trainer-settings-button:hover,
+.trainer-settings-button:focus-visible,
+.trainer-settings-button.active {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.34);
+  color: var(--green);
+  outline: 0;
+}
+
+.trainer-settings-menu {
+  position: relative;
+}
+
+.trainer-settings-panel {
+  background: #0c120f;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.52);
+  padding: 18px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: min(330px, calc(100vw - 28px));
+  z-index: 120;
+}
+
+.trainer-settings-panel header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 14px;
+}
+
+.trainer-settings-panel header h2 {
+  font-size: 19px;
+  margin: 0;
+}
+
+.trainer-settings-panel header .trainer-eyebrow {
+  margin-bottom: 5px;
+}
+
+.trainer-settings-panel header > button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  padding: 2px;
+}
+
+.trainer-settings-account {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.trainer-profile-photo-button {
+  align-items: center;
+  background: var(--green);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 999px;
+  color: var(--green-ink);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 52px;
+  font-size: 14px;
+  font-weight: 900;
+  height: 52px;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  width: 52px;
+}
+
+.trainer-profile-photo-button img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.trainer-profile-photo-button > i {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.68);
+  bottom: 0;
+  color: #ffffff;
+  display: flex;
+  font-size: 13px;
+  height: 20px;
+  justify-content: center;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.trainer-profile-photo-input {
+  display: none;
+}
+
+.trainer-profile-photo-status {
+  background: rgba(34, 197, 94, 0.09);
+  border: 1px solid rgba(34, 197, 94, 0.18);
+  border-radius: 10px;
+  color: #86efac;
+  font-size: 10px;
+  font-weight: 750;
+  margin: -4px 0 12px;
+  padding: 9px 11px;
+}
+
+.trainer-profile-photo-status.error {
+  background: rgba(239, 68, 68, 0.09);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+.trainer-profile-photo-save {
+  background: var(--green);
+  border: 0;
+  border-radius: 10px;
+  color: var(--green-ink);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+  margin: -4px 0 12px;
+  min-height: 38px;
+  width: 100%;
+}
+
+.trainer-profile-photo-save:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.trainer-settings-account strong,
+.trainer-settings-account small {
+  display: block;
+}
+
+.trainer-settings-account strong {
+  font-size: 14px;
+}
+
+.trainer-settings-account small {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 220px;
+}
+
+.trainer-setting-toggle {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 13px;
+  text-align: left;
+  width: 100%;
+}
+
+.trainer-setting-toggle span strong,
+.trainer-setting-toggle span small {
+  display: block;
+}
+
+.trainer-setting-toggle span strong {
+  font-size: 12px;
+}
+
+.trainer-setting-toggle span small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+.trainer-setting-toggle > i {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  display: block;
+  flex: 0 0 38px;
+  height: 22px;
+  padding: 3px;
+  transition: background 0.2s ease;
+}
+
+.trainer-setting-toggle > i b {
+  background: #d7dfdb;
+  border-radius: 999px;
+  display: block;
+  height: 16px;
+  transition: transform 0.2s ease;
+  width: 16px;
+}
+
+.trainer-setting-toggle > i.active {
+  background: var(--green);
+}
+
+.trainer-setting-toggle > i.active b {
+  background: var(--green-ink);
+  transform: translateX(16px);
+}
+
+.trainer-settings-signout {
+  align-items: center;
+  background: rgba(239, 68, 68, 0.09);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  color: #fca5a5;
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 9px;
+  justify-content: center;
+  margin-top: 12px;
+  min-height: 42px;
+  width: 100%;
+}
+
+.trainer-settings-signout .material-symbols-outlined {
+  font-size: 18px;
 }
 
 .trainer-icon-with-badge strong {
