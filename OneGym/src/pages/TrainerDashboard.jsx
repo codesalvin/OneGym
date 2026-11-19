@@ -182,6 +182,8 @@ export function TrainerDashboardPage() {
   });
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const [isClientSearchOpen, setIsClientSearchOpen] = useState(false);
   const [autoRefreshMessages, setAutoRefreshMessages] = useState(() => (
     localStorage.getItem('onegymTrainerAutoRefreshMessages') !== 'false'
   ));
@@ -218,6 +220,7 @@ export function TrainerDashboardPage() {
   const trainerProfilePhoto = profilePhotoPreview || resolveMediaUrl(storedTrainer.profile_photo_url || '');
   const messageScrollRef = useRef(null);
   const settingsRef = useRef(null);
+  const clientSearchRef = useRef(null);
   const profilePhotoInputRef = useRef(null);
   const pendingReadConversationIdsRef = useRef(new Set());
 
@@ -368,6 +371,29 @@ export function TrainerDashboardPage() {
       document.removeEventListener('keydown', closeSettings);
     };
   }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (!isClientSearchOpen) {
+      return undefined;
+    }
+
+    function closeClientSearch(event) {
+      if (event.type === 'keydown' && event.key !== 'Escape') {
+        return;
+      }
+      if (event.type === 'mousedown' && clientSearchRef.current?.contains(event.target)) {
+        return;
+      }
+      setIsClientSearchOpen(false);
+    }
+
+    document.addEventListener('mousedown', closeClientSearch);
+    document.addEventListener('keydown', closeClientSearch);
+    return () => {
+      document.removeEventListener('mousedown', closeClientSearch);
+      document.removeEventListener('keydown', closeClientSearch);
+    };
+  }, [isClientSearchOpen]);
 
   useEffect(() => {
     messageScrollRef.current?.scrollTo({
@@ -633,8 +659,10 @@ export function TrainerDashboardPage() {
       const latestWorkout = getLatestWorkout(workouts);
 
       return {
+        id: member.id,
         initials: getInitials(member),
         name: member.username || member.email,
+        email: member.email || '',
         goal: recentWorkouts > 0 ? `${recentWorkouts} workouts this month` : 'No recent workouts',
         progress,
         recentWorkouts,
@@ -648,6 +676,24 @@ export function TrainerDashboardPage() {
       };
     });
   }, [classes, clientWorkouts, memberUsers]);
+
+  const matchingClientCards = useMemo(() => {
+    const query = clientSearch.trim().toLowerCase();
+    if (!query) {
+      return clientCards;
+    }
+
+    return clientCards.filter((client) => (
+      client.name.toLowerCase().includes(query)
+      || client.email.toLowerCase().includes(query)
+    ));
+  }, [clientCards, clientSearch]);
+
+  function openClientFromSearch(client) {
+    setClientSearch(client.name);
+    setIsClientSearchOpen(false);
+    openTrainerTab('clients');
+  }
 
   const scheduleRows = useMemo(() => {
     const now = new Date();
@@ -763,16 +809,49 @@ export function TrainerDashboardPage() {
                 <small>Trainer Space</small>
               </span>
             </a>
-          </div>
-          <div>
-            <h1>{tabTitle}</h1>
-            <p>{tabDescription}</p>
+            <div className="trainer-topbar-copy">
+              <h1>{tabTitle}</h1>
+              <p>{tabDescription}</p>
+            </div>
           </div>
           <div className="trainer-top-actions">
-            <label>
-              <span className="material-symbols-outlined">search</span>
-              <input placeholder="Search clients..." type="search" />
-            </label>
+            <div className="trainer-client-search" ref={clientSearchRef}>
+              <label>
+                <span className="material-symbols-outlined">search</span>
+                <input
+                  aria-label="Search clients"
+                  onChange={(event) => {
+                    setClientSearch(event.target.value);
+                    setIsClientSearchOpen(true);
+                  }}
+                  onFocus={() => setIsClientSearchOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && matchingClientCards[0]) {
+                      event.preventDefault();
+                      openClientFromSearch(matchingClientCards[0]);
+                    }
+                  }}
+                  placeholder="Search clients..."
+                  type="search"
+                  value={clientSearch}
+                />
+              </label>
+              {isClientSearchOpen && clientSearch.trim() && (
+                <div className="trainer-client-search-results" role="listbox">
+                  {matchingClientCards.length ? matchingClientCards.slice(0, 6).map((client) => (
+                    <button key={client.id} onClick={() => openClientFromSearch(client)} role="option" type="button">
+                      <span>{client.initials}</span>
+                      <span>
+                        <strong>{client.name}</strong>
+                        <small>{client.email || client.goal}</small>
+                      </span>
+                    </button>
+                  )) : (
+                    <p>No clients match “{clientSearch.trim()}”.</p>
+                  )}
+                </div>
+              )}
+            </div>
             <NotificationBell apiBaseUrl={API_BASE_URL} onOpenMessage={() => openTrainerTab('messages')} />
             <div className="trainer-settings-menu" ref={settingsRef}>
               <button
@@ -1066,7 +1145,7 @@ export function TrainerDashboardPage() {
             <button type="button">Add Client</button>
           </div>
           <div className="trainer-client-grid">
-            {clientCards.length ? clientCards.map((client) => (
+            {matchingClientCards.length ? matchingClientCards.map((client) => (
               <article key={client.name}>
                 <div className="trainer-client-head">
                   <span>{client.initials}</span>
@@ -1089,8 +1168,8 @@ export function TrainerDashboardPage() {
             )) : (
               <div className="trainer-empty-state">
                 <span className="material-symbols-outlined">groups</span>
-                <strong>No member clients found yet.</strong>
-                <small>Members will appear here once they join OneGym.</small>
+                <strong>{clientSearch.trim() ? 'No matching clients found.' : 'No member clients found yet.'}</strong>
+                <small>{clientSearch.trim() ? 'Try searching by another name or email.' : 'Members will appear here once they join OneGym.'}</small>
               </div>
             )}
           </div>
@@ -1104,7 +1183,7 @@ export function TrainerDashboardPage() {
             </div>
           </div>
           <div className="trainer-progress-grid">
-            {clientCards.length ? clientCards.map((client) => (
+            {matchingClientCards.length ? matchingClientCards.map((client) => (
               <article key={client.name}>
                 <div className="trainer-client-head">
                   <span>{client.initials}</span>
@@ -1128,8 +1207,8 @@ export function TrainerDashboardPage() {
             )) : (
               <div className="trainer-empty-state">
                 <span className="material-symbols-outlined">monitoring</span>
-                <strong>No client milestones available yet.</strong>
-                <small>Progress appears when members log workouts and goals.</small>
+                <strong>{clientSearch.trim() ? 'No matching client progress found.' : 'No client milestones available yet.'}</strong>
+                <small>{clientSearch.trim() ? 'Try searching by another name or email.' : 'Progress appears when members log workouts and goals.'}</small>
               </div>
             )}
           </div>

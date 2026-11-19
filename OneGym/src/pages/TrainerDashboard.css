@@ -283,6 +283,11 @@
   align-items: center;
   display: flex;
   gap: 12px;
+  min-width: 0;
+}
+
+.trainer-topbar-copy {
+  min-width: 0;
 }
 
 .trainer-menu-btn {
@@ -337,6 +342,12 @@
   gap: 14px;
 }
 
+.trainer-client-search {
+  position: relative;
+  width: 280px;
+  z-index: 110;
+}
+
 .trainer-top-actions label {
   align-items: center;
   background: rgba(255, 255, 255, 0.045);
@@ -347,6 +358,10 @@
   height: 42px;
   padding: 0 14px;
   width: 280px;
+}
+
+.trainer-client-search label {
+  width: 100%;
 }
 
 .trainer-top-actions label span {
@@ -361,6 +376,75 @@
   min-width: 0;
   outline: 0;
   width: 100%;
+}
+
+.trainer-client-search-results {
+  background: #0c120f;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.48);
+  left: 0;
+  max-height: 330px;
+  overflow-y: auto;
+  padding: 7px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+}
+
+.trainer-client-search-results > button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.trainer-client-search-results > button:hover,
+.trainer-client-search-results > button:focus-visible {
+  background: rgba(34, 197, 94, 0.12);
+  outline: 0;
+}
+
+.trainer-client-search-results > button > span:first-child {
+  align-items: center;
+  background: rgba(34, 197, 94, 0.16);
+  border-radius: 999px;
+  color: var(--green);
+  display: inline-flex;
+  flex: 0 0 34px;
+  font-size: 11px;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+}
+
+.trainer-client-search-results strong,
+.trainer-client-search-results small {
+  display: block;
+}
+
+.trainer-client-search-results strong {
+  font-size: 12px;
+}
+
+.trainer-client-search-results small {
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.trainer-client-search-results > p {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0;
+  padding: 13px 11px;
 }
 
 .trainer-top-actions > button,
@@ -1682,6 +1766,10 @@
     width: 220px;
   }
 
+  .trainer-client-search {
+    width: 220px;
+  }
+
   .trainer-inbox-layout {
     grid-template-columns: 1fr;
     overflow: visible;
@@ -1727,6 +1815,10 @@
     width: 100%;
   }
 
+  .trainer-client-search {
+    width: 100%;
+  }
+
   .trainer-hero-panel,
   .trainer-work-grid,
   .trainer-create-class-form,
@@ -1766,6 +1858,11 @@
 
   .trainer-topbar-title-row {
     align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .trainer-topbar-copy {
+    flex-basis: 100%;
   }
 
   .trainer-thread-message {
