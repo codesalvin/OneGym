@@ -1082,7 +1082,7 @@ def save_profile_photo(uploaded_file, oidc_token=''):
 
     if blob_token or blob_store_id:
         try:
-            from vercel.blob import put_blob
+            from vercel.blob.sync import put_blob
             from vercel.headers import set_headers
 
             set_headers({'x-vercel-oidc-token': oidc_token} if oidc_token else None)
