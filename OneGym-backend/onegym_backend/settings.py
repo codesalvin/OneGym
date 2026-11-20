@@ -38,14 +38,18 @@ load_env_file(BASE_DIR / '.env')
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get(
-    'SECRET_KEY',
-    'django-insecure-f$z*(+%a6x(i=ly$7xq0e^l^k!z*4mbz7(ih8ak_sne3#@bd6h',
-)
+_ON_VERCEL = bool(os.environ.get('VERCEL'))
+
+# SECURITY WARNING: keep the secret key used in production secret. Local
+# development gets a disposable fallback, but deployments must configure it.
+SECRET_KEY = os.environ.get('SECRET_KEY', '').strip()
+if not SECRET_KEY:
+    if _ON_VERCEL:
+        raise RuntimeError('SECRET_KEY must be configured in the deployment environment.')
+    SECRET_KEY = 'django-insecure-local-development-only-change-me'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').strip().lower() == 'true'
+DEBUG = os.environ.get('DEBUG', 'False' if _ON_VERCEL else 'True').strip().lower() == 'true'
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -54,6 +58,10 @@ ALLOWED_HOSTS = [
 ]
 if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
     ALLOWED_HOSTS.append(os.environ['RENDER_EXTERNAL_HOSTNAME'])
+if _ON_VERCEL:
+    for host in ('.vercel.app', '.now.sh'):
+        if host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(host)
 
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get(
     'CORS_ALLOWED_ORIGINS',
@@ -72,6 +80,10 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_REFERRER_POLICY = 'same-origin'
 
 
 # Application definition
@@ -127,11 +139,14 @@ DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
 DATABASE_ENGINE = os.environ.get('DATABASE_ENGINE', 'mysql').strip().lower()
 
 if DATABASE_URL:
+    # Serverless instances must not hold Postgres connections between requests.
+    _conn_max_age = os.environ.get('POSTGRES_CONN_MAX_AGE', '0' if _ON_VERCEL else '60')
     DATABASES = {
         'default': dj_database_url.parse(
             DATABASE_URL,
-            conn_max_age=int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
-            conn_health_checks=True,
+            conn_max_age=int(_conn_max_age),
+            conn_health_checks=not _ON_VERCEL,
+            ssl_require=os.environ.get('POSTGRES_SSLMODE', 'require' if _ON_VERCEL else 'prefer') != 'disable',
         )
     }
 elif DATABASE_ENGINE in {'postgres', 'postgresql'}:

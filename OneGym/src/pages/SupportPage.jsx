@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavBar } from '../components/NavBar';
 import { Footer } from '../components/Footer';
 import './SupportPage.css';
@@ -28,7 +29,47 @@ const socialLinks = [
   { label: 'YouTube', value: 'OneGym Studio' },
 ];
 
+const API_BASE_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE_URL || '/api');
+
+function storedUser() {
+  try { return JSON.parse(localStorage.getItem('onegymUser') || '{}'); } catch { return {}; }
+}
+
 export function SupportPage() {
+  const user = storedUser();
+  const [form, setForm] = useState({ name: user.username || '', email: user.email || '', subject: '', message: '' });
+  const [status, setStatus] = useState('');
+  const [isError, setIsError] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+
+  async function submitTicket(event) {
+    event.preventDefault();
+    setIsSending(true);
+    setStatus('');
+    setIsError(false);
+    try {
+      const response = await fetch(`${API_BASE_URL}/support-tickets/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'Unable to submit your request.');
+      setStatus(`${data.detail} Reference #${data.ticket_id}.`);
+      setForm((current) => ({ ...current, subject: '', message: '' }));
+    } catch (error) {
+      setIsError(true);
+      setStatus(error.message);
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  function updateForm(event) {
+    setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  }
+
   return (
     <>
       <NavBar />
@@ -40,6 +81,21 @@ export function SupportPage() {
         </section>
 
         <section className="support-grid">
+          <article className="support-panel support-ticket-panel">
+            <p className="support-kicker">Send a request</p>
+            <h2>How can we help?</h2>
+            <form className="support-ticket-form" onSubmit={submitTicket}>
+              <div>
+                <label>Name<input name="name" onChange={updateForm} required value={form.name} /></label>
+                <label>Email<input name="email" onChange={updateForm} required type="email" value={form.email} /></label>
+              </div>
+              <label>Subject<input name="subject" onChange={updateForm} required value={form.subject} /></label>
+              <label>Message<textarea name="message" onChange={updateForm} required rows="5" value={form.message} /></label>
+              <button disabled={isSending} type="submit">{isSending ? 'Sending…' : 'Submit request'}</button>
+              {status ? <p className={`support-ticket-status ${isError ? 'error' : ''}`}>{status}</p> : null}
+            </form>
+          </article>
+
           <article className="support-panel support-contact-panel">
             <p className="support-kicker">Customer support</p>
             <h2>Talk to us</h2>
@@ -58,10 +114,10 @@ export function SupportPage() {
                   <small>Trainer support</small>
                 </div>
               </a>
-              <a href="mailto:support@onegym.test">
+              <a href="mailto:support@onegym.com">
                 <span className="material-symbols-outlined">mail</span>
                 <div>
-                  <strong>support@onegym.test</strong>
+                  <strong>support@onegym.com</strong>
                   <small>Replies within one working day</small>
                 </div>
               </a>
@@ -97,10 +153,10 @@ export function SupportPage() {
             <h2>Find us outside the app</h2>
             <div className="support-social-list">
               {socialLinks.map((item) => (
-                <a href="#" key={item.label}>
+                <div key={item.label}>
                   <span>{item.label}</span>
                   <strong>{item.value}</strong>
-                </a>
+                </div>
               ))}
             </div>
           </article>

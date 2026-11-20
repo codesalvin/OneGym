@@ -3,7 +3,7 @@ import { Footer } from '../components/Footer';
 import { NavBar } from '../components/NavBar';
 import './PricingPage.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const stripeLinks = {
   pro: import.meta.env.VITE_STRIPE_PRO_PAYMENT_LINK,

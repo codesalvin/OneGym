@@ -34,5 +34,8 @@ Thumbs.db
 OneGym/saves/
 temp.html
 
+.vercel
+.env*
+
 # Safe environment templates
 !**/.env.example

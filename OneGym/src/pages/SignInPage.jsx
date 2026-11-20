@@ -195,7 +195,7 @@ export function SignInPage() {
     }
   }, [navigate]);
 
-  function initializeGoogleTokenClient() {
+  const initializeGoogleTokenClient = useCallback(() => {
     if (!window.google?.accounts?.oauth2) {
       throw new Error('Google sign in is not ready yet.');
     }
@@ -209,7 +209,7 @@ export function SignInPage() {
     }
 
     return googleTokenClientRef.current;
-  }
+  }, [handleSocialCredential]);
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) {
@@ -241,7 +241,7 @@ export function SignInPage() {
       isMounted = false;
       window.google?.accounts?.id?.cancel?.();
     };
-  }, [handleSocialCredential]);
+  }, [handleSocialCredential, initializeGoogleTokenClient]);
 
   async function handleGoogleAuth() {
     if (!GOOGLE_CLIENT_ID) {
@@ -669,7 +669,7 @@ export function SignInPage() {
           <div className="signin-legal-footer">
             <p className="signin-legal-text">
               By continuing, you agree to the OneGym{' '}
-              <a href="#">Privacy Policy</a> and <a href="#">Terms of Service</a>.
+              <a href="/privacy">Privacy Policy</a> and <a href="/terms">Terms of Service</a>.
             </p>
           </div>
         </div>

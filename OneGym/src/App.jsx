@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { HomePage } from './pages/HomePage';
 import { MemberDashboardPage } from './pages/MemberDashboard';
-import { MemberDashboardSamplePage } from './pages/MemberDashboardSample';
 import { SignInPage } from './pages/SignInPage';
 import { JoinTrainerPage } from './pages/JoinTrainerPage';
 import { TrainerDashboardPage } from './pages/TrainerDashboard';
@@ -9,6 +8,7 @@ import { TrainerChatPage } from './pages/TrainerChat';
 import { SupportPage } from './pages/SupportPage';
 import { PricingPage } from './pages/PricingPage';
 import { AdminDashboardPage } from './pages/AdminDashboard';
+import { LegalPage } from './pages/LegalPage';
 
 const MEMBER_ROLES = new Set(['member', 'pro', 'studio']);
 const ADMIN_ROLES = new Set(['admin', 'owner']);
@@ -86,8 +86,9 @@ function App() {
       <Route path="/signin" element={<SignInPage />} />
       <Route path="/support" element={<SupportPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/privacy" element={<LegalPage type="privacy" />} />
+      <Route path="/terms" element={<LegalPage type="terms" />} />
       <Route path="/member-dashboard" element={<MemberOnly><MemberDashboardPage /></MemberOnly>} />
-      <Route path="/member-dashboard-sample" element={<MemberOnly><MemberDashboardSamplePage /></MemberOnly>} />
       <Route path="/trainer-chat" element={<AuthOnly><TrainerChatPage /></AuthOnly>} />
       <Route path="/join-trainer" element={<JoinTrainerPage />} />
       <Route path="/trainer-dashboard" element={<TrainerOnly><TrainerDashboardPage /></TrainerOnly>} />

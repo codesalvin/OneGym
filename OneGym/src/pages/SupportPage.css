@@ -185,7 +185,7 @@
   z-index: 1;
 }
 
-.support-social-list a {
+.support-social-list > div {
   border-bottom: 1px solid #e8e8e8;
   color: #111111;
   display: flex;
@@ -201,6 +201,61 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
+
+.support-ticket-panel {
+  grid-column: 1 / -1;
+}
+
+.support-ticket-form,
+.support-ticket-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.support-ticket-form {
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.support-ticket-form > div {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.support-ticket-form label {
+  color: #555959;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.support-ticket-form input,
+.support-ticket-form textarea {
+  background: #f7f7f5;
+  border: 1px solid #d8d8d4;
+  color: #111;
+  font: inherit;
+  letter-spacing: normal;
+  padding: 13px 14px;
+  resize: vertical;
+  text-transform: none;
+}
+
+.support-ticket-form button {
+  background: #111;
+  border: 0;
+  color: white;
+  cursor: pointer;
+  font-weight: 800;
+  justify-self: start;
+  padding: 14px 22px;
+}
+
+.support-ticket-form button:disabled { opacity: .55; }
+.support-ticket-status { color: #16753b; margin: 0; }
+.support-ticket-status.error { color: #b42318; }
 
 .support-faq {
   margin-top: 38px;
@@ -252,9 +307,11 @@
   }
 
   .support-hours-panel div,
-  .support-social-list a {
+  .support-social-list > div {
     align-items: flex-start;
     flex-direction: column;
     gap: 6px;
   }
+
+  .support-ticket-form > div { grid-template-columns: 1fr; }
 }

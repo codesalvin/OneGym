@@ -24,7 +24,7 @@ from pathlib import Path
 import re
 import secrets
 
-from .models import PasswordResetCode
+from .models import PasswordResetCode, SupportTicket
 from .db_compat import get_last_insert_id
 from .serializers import (
     ClassBookingSerializer,
@@ -71,7 +71,7 @@ STRIPE_PLAN_BY_PAYMENT_LINK = {
 }
 
 
-def extract_json_object(text):
+def extract_json_object(text, allow_nutrition_fallback=True):
     if isinstance(text, dict):
         return text
 
@@ -93,7 +93,7 @@ def extract_json_object(text):
     if match:
         return json.loads(match.group(0))
 
-    if any(label in stripped.lower() for label in ['calories', 'protein', 'carb', 'fat']):
+    if allow_nutrition_fallback and any(label in stripped.lower() for label in ['calories', 'protein', 'carb', 'fat']):
         return parse_nutrition_text(stripped)
 
     preview = stripped[:160].replace('\n', ' ')
@@ -232,6 +232,9 @@ def normalize_food_estimate(estimate, raw_text=''):
         if not detected_foods:
             detected_foods = fallback.get('detected_foods') or []
 
+    if calories <= 0 and protein > 0 and carbs > 0 and fats > 0:
+        calories = round((protein * 4) + (carbs * 4) + (fats * 9))
+
     return {
         'description': str(description),
         'calories': calories,
@@ -250,14 +253,10 @@ def build_food_prompt(strict_retry=False):
     prompt = (
         'You are estimating nutrition from a food photo for a gym meal logger. '
         'Identify the visible food and estimate one serving shown in the image. '
-        'Do not write JSON, markdown, explanations, apologies, or prose. '
-        'Return exactly these five short lines and nothing else:\n'
-        'DESCRIPTION: short food name under 6 words\n'
-        'CALORIES: number\n'
-        'PROTEIN_G: number\n'
-        'CARBS_G: number\n'
-        'FATS_G: number\n'
+        'Return only the requested structured JSON values. '
+        'Use a short description under 6 words and numeric values for calories, protein_g, carbs_g, and fats_g. '
         'Calories must be kcal. Protein, carbs, and fats must be grams. '
+        'Estimate the entire visible serving, including sauces, oils, toppings, and sides. '
         'If exact portion size is uncertain, make a reasonable visual estimate instead of using 0.'
     )
 
@@ -303,6 +302,16 @@ def build_ollama_text_payload(text):
     }
 
 
+def build_nutrition_retry_prompt(text):
+    return (
+        'Convert the following food analysis into one complete nutrition estimate. '
+        'If a value is missing, estimate it from the described food and portion. '
+        'Return a short description plus numeric calories, protein_g, carbs_g, and fats_g. '
+        'Do not use zero for a visible meal. '
+        f'Food analysis: {text[:1200]}'
+    )
+
+
 def post_ollama_generate(payload):
     base_url = settings.OLLAMA_BASE_URL.rstrip('/')
     endpoint = f"{base_url}/generate" if base_url.endswith('/api') else f"{base_url}/api/generate"
@@ -344,40 +353,70 @@ def build_gemini_text_payload(prompt):
     }
 
 
+def nutrition_response_schema():
+    return {
+        'type': 'object',
+        'properties': {
+            'description': {'type': 'string'},
+            'calories': {'type': 'number'},
+            'protein_g': {'type': 'number'},
+            'carbs_g': {'type': 'number'},
+            'fats_g': {'type': 'number'},
+            'confidence': {'type': 'string'},
+            'detected_foods': {
+                'type': 'array',
+                'items': {'type': 'string'},
+            },
+        },
+        'required': ['description', 'calories', 'protein_g', 'carbs_g', 'fats_g'],
+    }
+
+
+def build_gemini_nutrition_text_payload(prompt):
+    payload = build_gemini_text_payload(prompt)
+    payload['generationConfig'].update({
+        'temperature': 0.2,
+        'maxOutputTokens': 700,
+        'responseMimeType': 'application/json',
+        'responseJsonSchema': nutrition_response_schema(),
+    })
+    return payload
+
+
 def build_gemini_assistant_payload(prompt):
     """Request a predictable assistant response without affecting image analysis."""
     payload = build_gemini_text_payload(prompt)
     payload['generationConfig'].update({
-        'maxOutputTokens': 800,
+        'maxOutputTokens': 1400,
         'responseMimeType': 'application/json',
-        'responseSchema': {
-            'type': 'OBJECT',
+        'responseJsonSchema': {
+            'type': 'object',
             'properties': {
-                'summary': {'type': 'STRING'},
+                'summary': {'type': 'string'},
                 'cards': {
-                    'type': 'ARRAY',
+                    'type': 'array',
                     'items': {
-                        'type': 'OBJECT',
+                        'type': 'object',
                         'properties': {
-                            'label': {'type': 'STRING'},
-                            'title': {'type': 'STRING'},
-                            'detail': {'type': 'STRING'},
+                            'label': {'type': 'string'},
+                            'title': {'type': 'string'},
+                            'detail': {'type': 'string'},
                             'macros': {
-                                'type': 'ARRAY',
+                                'type': 'array',
                                 'items': {
-                                    'type': 'OBJECT',
+                                    'type': 'object',
                                     'properties': {
-                                        'value': {'type': 'STRING'},
-                                        'label': {'type': 'STRING'},
+                                        'value': {'type': 'string'},
+                                        'label': {'type': 'string'},
                                     },
                                     'required': ['value', 'label'],
                                 },
                             },
                         },
-                        'required': ['label'],
+                        'required': ['label', 'title', 'detail'],
                     },
                 },
-                'note': {'type': 'STRING'},
+                'note': {'type': 'string'},
             },
             'required': ['summary', 'cards'],
         },
@@ -403,7 +442,9 @@ def build_gemini_image_payload(image_data, mime_type, strict_retry=False):
         ],
         'generationConfig': {
             'temperature': 0.2 if strict_retry else 0.1,
-            'maxOutputTokens': 500,
+            'maxOutputTokens': 700,
+            'responseMimeType': 'application/json',
+            'responseJsonSchema': nutrition_response_schema(),
         },
     }
 
@@ -498,6 +539,7 @@ def build_assistant_prompt(message, meals, totals):
         'Use the user\'s current day nutrition context when answering. '
         'Do not claim to diagnose medical conditions. '
         'Keep answers practical and specific. '
+        'The summary must answer the user directly and must not use a placeholder such as "recommendation is ready". '
         'Return only valid JSON, with no markdown fences and no extra text. '
         'The JSON must match this shape:\n'
         '{'
@@ -615,7 +657,7 @@ def serialize_trainer_conversation_row(row):
 
 def parse_assistant_reply(content):
     try:
-        data = extract_json_object(content)
+        data = extract_json_object(content, allow_nutrition_fallback=False)
     except ValueError:
         return {
             'summary': content,
@@ -639,8 +681,12 @@ def parse_assistant_reply(content):
         'here is your recommendation.',
         'assistant recommendation',
     }
-    if summary.lower() in generic_summaries and not cards:
-        summary = str(data.get('answer') or data.get('message') or '').strip()
+    if summary.lower() in generic_summaries:
+        direct_answer = str(data.get('answer') or data.get('message') or '').strip()
+        if direct_answer:
+            summary = direct_answer
+        elif cards:
+            summary = str(cards[0].get('detail') or cards[0].get('title') or '').strip()
 
     if not summary and cards:
         first_card = cards[0]
@@ -657,7 +703,11 @@ def parse_assistant_reply(content):
 
 
 @api_view(['GET'])
-def user_ai_chat_messages(_request, user_id):
+def user_ai_chat_messages(request, user_id):
+    _, access_error = require_user_access(request, user_id)
+    if access_error:
+        return access_error
+
     with connection.cursor() as cursor:
         cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
         if not cursor.fetchone():
@@ -935,6 +985,11 @@ def ai_assistant_chat(request):
         return Response({'detail': 'User id is required.'}, status=status.HTTP_400_BAD_REQUEST)
     if not message:
         return Response({'detail': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    _, access_error = require_user_access(request, user_id)
+    if access_error:
+        return access_error
+
     if not settings.GEMINI_API_KEY:
         return Response(
             {'detail': 'Add GEMINI_API_KEY to OneGym-backend/.env to enable AI Assistant chat.'},
@@ -991,18 +1046,22 @@ def analyze_food_image(uploaded_file):
     mime_type = uploaded_file.content_type or 'image/jpeg'
 
     response_data = post_gemini_generate(build_gemini_image_payload(image_data, mime_type))
-    content = get_gemini_text(response_data)
+    content = get_gemini_text(response_data).strip()
     if not content:
         raise ValueError('Gemini did not return a nutrition estimate.')
 
-    estimate = extract_json_object(content)
-    normalized = normalize_food_estimate(estimate, content)
+    try:
+        normalized = normalize_food_estimate(extract_json_object(content), content)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        normalized = normalize_food_estimate(parse_nutrition_text(content), content)
 
     def estimate_is_incomplete(value):
         return any(first_number(value.get(field)) <= 0 for field in ['calories', 'protein_g', 'carbs_g', 'fats_g'])
 
     if estimate_is_incomplete(normalized):
-        retry_content = get_gemini_text(post_gemini_generate(build_gemini_text_payload(build_ollama_text_payload(content)['prompt'])))
+        retry_content = get_gemini_text(post_gemini_generate(
+            build_gemini_nutrition_text_payload(build_nutrition_retry_prompt(content))
+        )).strip()
         if not retry_content:
             raise ValueError('Gemini described the food but did not return nutrition numbers.')
         normalized = normalize_food_estimate(extract_json_object(retry_content), retry_content)
@@ -1016,7 +1075,9 @@ def analyze_food_image(uploaded_file):
             normalized['description'] = shorten_description(normalized['description'])
 
     if estimate_is_incomplete(normalized):
-        text_retry_content = get_gemini_text(post_gemini_generate(build_gemini_text_payload(build_ollama_text_payload(content)['prompt'])))
+        text_retry_content = get_gemini_text(post_gemini_generate(
+            build_gemini_nutrition_text_payload(build_nutrition_retry_prompt(content))
+        )).strip()
         if text_retry_content:
             normalized = normalize_food_estimate(extract_json_object(text_retry_content), text_retry_content)
             normalized['description'] = shorten_description(normalized['description'])
@@ -1052,13 +1113,35 @@ def save_certification_file(uploaded_file):
     return default_storage.url(saved_path)
 
 
+def validate_image_upload(uploaded_file, max_size, label):
+    if not uploaded_file:
+        raise ValueError(f'{label} is required.')
+    if uploaded_file.size > max_size:
+        raise ValueError(f'{label} is too large.')
+
+    position = uploaded_file.tell()
+    header = uploaded_file.read(16)
+    uploaded_file.seek(position)
+    detected = None
+    if header.startswith(b'\xff\xd8\xff'):
+        detected = ('.jpg', 'image/jpeg')
+    elif header.startswith(b'\x89PNG\r\n\x1a\n'):
+        detected = ('.png', 'image/png')
+    elif header.startswith(b'RIFF') and header[8:12] == b'WEBP':
+        detected = ('.webp', 'image/webp')
+
+    if not detected:
+        raise ValueError(f'{label} must be a valid JPG, PNG, or WEBP image.')
+    if uploaded_file.content_type and uploaded_file.content_type not in {'image/jpeg', 'image/png', 'image/webp'}:
+        raise ValueError(f'{label} content type does not match a supported image.')
+    return detected
+
+
 def save_meal_photo(uploaded_file):
     if not uploaded_file:
         return None
 
-    extension = Path(uploaded_file.name).suffix.lower()
-    if extension not in ['.jpg', '.jpeg', '.png', '.webp']:
-        extension = '.jpg'
+    extension, _ = validate_image_upload(uploaded_file, 8 * 1024 * 1024, 'Meal photo')
 
     filename = f'meal_photos/{secrets.token_urlsafe(16)}{extension}'
     saved_path = default_storage.save(filename, ContentFile(uploaded_file.read()))
@@ -1069,12 +1152,7 @@ def save_profile_photo(uploaded_file, oidc_token=''):
     if not uploaded_file:
         return None
 
-    if uploaded_file.size > 4 * 1024 * 1024:
-        raise ValueError('Profile photo must be 4MB or smaller.')
-    if uploaded_file.content_type and not uploaded_file.content_type.startswith('image/'):
-        raise ValueError('Profile photo must be an image file.')
-
-    extension = Path(uploaded_file.name).suffix.lower() or '.jpg'
+    extension, detected_content_type = validate_image_upload(uploaded_file, 4 * 1024 * 1024, 'Profile photo')
     filename = f'profile_photos/{secrets.token_urlsafe(16)}{extension}'
     file_data = uploaded_file.read()
     blob_token = os.environ.get('BLOB_READ_WRITE_TOKEN', '')
@@ -1092,7 +1170,7 @@ def save_profile_photo(uploaded_file, oidc_token=''):
                     file_data,
                     access='public',
                     content_length=len(file_data),
-                    content_type=uploaded_file.content_type or 'image/jpeg',
+                    content_type=detected_content_type,
                     add_random_suffix=True,
                 )
             finally:
@@ -1717,7 +1795,11 @@ def exercise_list(_request):
 
 
 @api_view(['GET'])
-def user_personal_records(_request, user_id):
+def user_personal_records(request, user_id):
+    _, access_error = require_user_access(request, user_id, allow_trainer=True)
+    if access_error:
+        return access_error
+
     with connection.cursor() as cursor:
         cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
         if not cursor.fetchone():
@@ -1753,6 +1835,125 @@ def user_personal_records(_request, user_id):
 
     serializer = PersonalRecordSerializer(records, many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+def leaderboard(request):
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        limit = min(max(int(request.query_params.get('limit', 100) or 100), 1), 250)
+    except (TypeError, ValueError):
+        limit = 100
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT
+                pr.id, pr.user_id, u.username, e.id AS exercise_id, e.name AS exercise_name,
+                e.category, pr.record_type, pr.value, pr.unit, pr.recorded_at, pr.notes,
+                pr.status, pr.is_verified, pr.created_at
+            FROM personal_records pr
+            INNER JOIN users u ON u.id = pr.user_id
+            INNER JOIN exercises e ON e.id = pr.exercise_id
+            WHERE pr.is_verified = TRUE
+            ORDER BY pr.value DESC, pr.recorded_at DESC, pr.id DESC
+            LIMIT %s
+            ''',
+            [limit],
+        )
+        columns = [column[0] for column in cursor.description]
+        records = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    return Response(records)
+
+
+@api_view(['GET', 'POST'])
+def reviews(request):
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+    if actor['role'] not in MEMBER_SUBSCRIPTION_ROLES and actor['role'] not in ['admin', 'owner']:
+        return Response({'detail': 'Only members can submit reviews.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        with connection.cursor() as cursor:
+            cursor.execute(
+                '''
+                SELECT 'class' AS review_type, r.id, r.class_id AS target_id, c.title AS subject,
+                       r.rating, r.comment, r.created_at
+                FROM class_reviews r
+                INNER JOIN classes c ON c.id = r.class_id
+                WHERE r.reviewer_id = %s
+                UNION ALL
+                SELECT 'trainer', r.id, r.trainer_id, u.username, r.rating, r.comment, r.created_at
+                FROM trainer_reviews r
+                INNER JOIN users u ON u.id = r.trainer_id
+                WHERE r.reviewer_id = %s
+                ORDER BY created_at DESC
+                ''',
+                [actor['id'], actor['id']],
+            )
+            columns = [column[0] for column in cursor.description]
+            return Response([dict(zip(columns, row)) for row in cursor.fetchall()])
+
+    review_type = str(request.data.get('review_type') or '').strip().lower()
+    try:
+        target_id = int(request.data.get('target_id'))
+        rating = int(request.data.get('rating'))
+    except (TypeError, ValueError):
+        return Response({'detail': 'A valid review target and rating are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    comment = str(request.data.get('comment') or '').strip()[:2000]
+    if review_type not in {'class', 'trainer'} or rating not in range(1, 6):
+        return Response({'detail': 'Choose a class or trainer and a rating from 1 to 5.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic(), connection.cursor() as cursor:
+        if review_type == 'class':
+            cursor.execute(
+                '''SELECT c.id FROM classes c
+                   INNER JOIN class_bookings b ON b.class_id = c.id
+                   WHERE c.id = %s AND b.user_id = %s LIMIT 1''',
+                [target_id, actor['id']],
+            )
+            if not cursor.fetchone():
+                return Response({'detail': 'You can only review a class you booked.'}, status=status.HTTP_403_FORBIDDEN)
+            table, target_column = 'class_reviews', 'class_id'
+        else:
+            cursor.execute("SELECT id FROM users WHERE id = %s AND LOWER(role) = 'trainer' LIMIT 1", [target_id])
+            if not cursor.fetchone():
+                return Response({'detail': 'Trainer not found.'}, status=status.HTTP_404_NOT_FOUND)
+            cursor.execute(
+                '''SELECT id FROM class_bookings b INNER JOIN classes c ON c.id = b.class_id
+                   WHERE b.user_id = %s AND c.trainer_id = %s LIMIT 1''',
+                [actor['id'], target_id],
+            )
+            if not cursor.fetchone():
+                return Response({'detail': 'Book a class with this trainer before reviewing them.'}, status=status.HTTP_403_FORBIDDEN)
+            table, target_column = 'trainer_reviews', 'trainer_id'
+
+        cursor.execute(
+            f'SELECT id FROM {table} WHERE {target_column} = %s AND reviewer_id = %s LIMIT 1',
+            [target_id, actor['id']],
+        )
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute(
+                f'UPDATE {table} SET rating = %s, comment = %s WHERE id = %s',
+                [rating, comment or None, existing[0]],
+            )
+            review_id = existing[0]
+            response_status = status.HTTP_200_OK
+        else:
+            cursor.execute(
+                f'''INSERT INTO {table} ({target_column}, reviewer_id, rating, comment, created_at)
+                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)''',
+                [target_id, actor['id'], rating, comment or None],
+            )
+            review_id = get_last_insert_id(cursor)
+            response_status = status.HTTP_201_CREATED
+
+    return Response({'detail': 'Review saved.', 'id': review_id}, status=response_status)
 
 
 @api_view(['POST'])
@@ -1921,7 +2122,11 @@ def delete_personal_record(request, record_id=None):
 
 
 @api_view(['GET'])
-def user_list(_request):
+def user_list(request):
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
     with connection.cursor() as cursor:
         cursor.execute(
             '''
@@ -2020,19 +2225,24 @@ def user_list(_request):
             ) in cursor.fetchall()
         ]
 
+    if actor['role'] in MEMBER_SUBSCRIPTION_ROLES:
+        users = [user for user in users if user['role'] == 'trainer']
+    elif actor['role'] == 'trainer':
+        users = [user for user in users if user['role'] in MEMBER_SUBSCRIPTION_ROLES]
+    elif actor['role'] not in ['admin', 'owner']:
+        users = []
+
     serializer = UserSerializer(users, many=True)
     return Response(serializer.data)
 
 
 @api_view(['GET', 'PATCH', 'POST'])
 def user_detail(request, user_id):
-    if request.method in ['PATCH', 'POST']:
-        actor = get_authenticated_user(request)
-        if not actor:
-            return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
-        if actor['role'] not in ['admin', 'owner'] and actor['id'] != user_id:
-            return Response({'detail': 'You cannot edit this profile.'}, status=status.HTTP_403_FORBIDDEN)
+    _, access_error = require_user_access(request, user_id)
+    if access_error:
+        return access_error
 
+    if request.method in ['PATCH', 'POST']:
         serializer = UserProfileUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -2242,9 +2452,17 @@ def class_list(request):
             status=status.HTTP_201_CREATED,
         )
 
+    viewer = get_authenticated_user(request)
+    include_history = (
+        str(request.query_params.get('include_history') or '').lower() in {'1', 'true', 'yes'}
+        and viewer
+        and viewer['role'] in ['trainer', 'admin', 'owner']
+    )
+    schedule_filter = '' if include_history else 'WHERE c.schedule_time >= NOW()'
+
     with connection.cursor() as cursor:
         cursor.execute(
-            '''
+            f'''
             SELECT
                 c.id,
                 c.trainer_id,
@@ -2257,7 +2475,7 @@ def class_list(request):
             FROM classes c
             LEFT JOIN users u ON u.id = c.trainer_id
             LEFT JOIN class_bookings cb ON cb.class_id = c.id
-            WHERE c.schedule_time >= NOW()
+            {schedule_filter}
             GROUP BY c.id, c.trainer_id, c.title, u.username, c.instructor_name, c.room, c.schedule_time, c.slots
             ORDER BY c.schedule_time
             '''
@@ -2351,9 +2569,100 @@ def class_detail(request, class_id):
     return Response({'detail': 'Class updated successfully.'})
 
 
+@api_view(['GET', 'PATCH'])
+def class_attendance(request, class_id):
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+    if actor['role'] not in ['trainer', 'admin', 'owner']:
+        return Response({'detail': 'Trainer access is required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT trainer_id, title FROM classes WHERE id = %s LIMIT 1', [class_id])
+        class_row = cursor.fetchone()
+        if not class_row:
+            return Response({'detail': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if actor['role'] == 'trainer' and class_row[0] != actor['id']:
+            return Response({'detail': 'You can only manage attendance for your own classes.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.method == 'PATCH':
+            try:
+                booking_id = int(request.data.get('booking_id'))
+            except (TypeError, ValueError):
+                return Response({'detail': 'Valid booking id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            attendance_status = str(request.data.get('attendance_status') or '').strip().lower()
+            if attendance_status not in {'booked', 'attended', 'late', 'absent'}:
+                return Response({'detail': 'Attendance must be booked, attended, late, or absent.'}, status=status.HTTP_400_BAD_REQUEST)
+            cursor.execute('SELECT id FROM class_bookings WHERE id = %s AND class_id = %s LIMIT 1', [booking_id, class_id])
+            if not cursor.fetchone():
+                return Response({'detail': 'Booking not found for this class.'}, status=status.HTTP_404_NOT_FOUND)
+            cursor.execute('SELECT id FROM class_attendance WHERE booking_id = %s LIMIT 1', [booking_id])
+            attendance_row = cursor.fetchone()
+            checked_in_at = timezone.now() if attendance_status in {'attended', 'late'} else None
+            if attendance_row:
+                cursor.execute(
+                    '''UPDATE class_attendance
+                       SET recorded_by = %s, attendance_status = %s, checked_in_at = %s
+                       WHERE booking_id = %s''',
+                    [actor['id'], attendance_status, checked_in_at, booking_id],
+                )
+            else:
+                cursor.execute(
+                    '''INSERT INTO class_attendance
+                       (booking_id, recorded_by, attendance_status, checked_in_at, created_at)
+                       VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)''',
+                    [booking_id, actor['id'], attendance_status, checked_in_at],
+                )
+
+        cursor.execute(
+            '''
+            SELECT b.id AS booking_id, b.user_id, u.username, u.email,
+                   COALESCE(a.attendance_status, 'booked') AS attendance_status,
+                   a.checked_in_at
+            FROM class_bookings b
+            INNER JOIN users u ON u.id = b.user_id
+            LEFT JOIN class_attendance a ON a.booking_id = b.id
+            WHERE b.class_id = %s
+            ORDER BY u.username, b.id
+            ''',
+            [class_id],
+        )
+        columns = [column[0] for column in cursor.description]
+        attendees = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    return Response({'class_id': class_id, 'class_title': class_row[1], 'attendees': attendees})
+
+
+@api_view(['POST'])
+def support_tickets(request):
+    actor = get_authenticated_user(request)
+    name = str(request.data.get('name') or (actor or {}).get('username') or '').strip()
+    email = str(request.data.get('email') or (actor or {}).get('email') or '').strip().lower()
+    subject = str(request.data.get('subject') or '').strip()
+    message = str(request.data.get('message') or '').strip()
+    if not name or not email or '@' not in email or not subject or not message:
+        return Response({'detail': 'Name, email, subject, and message are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if len(message) > 5000:
+        return Response({'detail': 'Message must be 5,000 characters or fewer.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    ticket = SupportTicket.objects.create(
+        user_id=(actor or {}).get('id'),
+        name=name[:150],
+        email=email[:254],
+        subject=subject[:180],
+        message=message,
+    )
+    return Response({'detail': 'Support request submitted.', 'ticket_id': ticket.id}, status=status.HTTP_201_CREATED)
+
+
 @api_view(['POST'])
 def book_class(request, class_id):
-    user_id = request.data.get('user_id')
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    requested_user_id = request.data.get('user_id')
+    user_id = requested_user_id if actor['role'] in ['admin', 'owner'] else actor['id']
     if not user_id:
         return Response(
             {'detail': 'User id is required.'},
@@ -2388,7 +2697,11 @@ def book_class(request, class_id):
 
 
 @api_view(['GET'])
-def user_bookings(_request, user_id):
+def user_bookings(request, user_id):
+    _, access_error = require_user_access(request, user_id)
+    if access_error:
+        return access_error
+
     with connection.cursor() as cursor:
         cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
         if not cursor.fetchone():
@@ -2454,7 +2767,12 @@ def user_bookings(_request, user_id):
 
 @api_view(['DELETE'])
 def cancel_booking(request, booking_id):
-    user_id = request.data.get('user_id') or request.query_params.get('user_id')
+    actor = get_authenticated_user(request)
+    if not actor:
+        return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    requested_user_id = request.data.get('user_id') or request.query_params.get('user_id')
+    user_id = requested_user_id if actor['role'] in ['admin', 'owner'] else actor['id']
     if not user_id:
         return Response(
             {'detail': 'User id is required.'},
@@ -2482,6 +2800,10 @@ def create_workout(request):
     serializer = WorkoutCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
+
+    _, access_error = require_user_access(request, data['user_id'])
+    if access_error:
+        return access_error
 
     with connection.cursor() as cursor:
         cursor.execute('SELECT id, created_at FROM users WHERE id = %s LIMIT 1', [data['user_id']])
@@ -2558,6 +2880,10 @@ def delete_workout(request, workout_id=None):
     if not user_id:
         return Response({'detail': 'User id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    _, access_error = require_user_access(request, user_id)
+    if access_error:
+        return access_error
+
     try:
         workout_id = int(workout_id)
     except (TypeError, ValueError):
@@ -2583,6 +2909,10 @@ def delete_workout(request, workout_id=None):
 
 @api_view(['GET'])
 def user_workouts(request, user_id):
+    _, access_error = require_user_access(request, user_id, allow_trainer=True)
+    if access_error:
+        return access_error
+
     with connection.cursor() as cursor:
         cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
         if not cursor.fetchone():
@@ -2667,6 +2997,10 @@ def user_workouts(request, user_id):
 
 @api_view(['GET'])
 def user_meals(request, user_id):
+    _, access_error = require_user_access(request, user_id)
+    if access_error:
+        return access_error
+
     with connection.cursor() as cursor:
         cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
         if not cursor.fetchone():
@@ -2733,12 +3067,16 @@ def analyze_meal_photo(request):
 
     if not user_id:
         return Response({'detail': 'User id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    _, access_error = require_user_access(request, user_id)
+    if access_error:
+        return access_error
     if not uploaded_file:
         return Response({'detail': 'Meal photo is required.'}, status=status.HTTP_400_BAD_REQUEST)
-    if uploaded_file.size > 8 * 1024 * 1024:
-        return Response({'detail': 'Meal photo must be under 8MB.'}, status=status.HTTP_400_BAD_REQUEST)
-    if not uploaded_file.content_type.startswith('image/'):
-        return Response({'detail': 'Meal photo must be an image.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        validate_image_upload(uploaded_file, 8 * 1024 * 1024, 'Meal photo')
+    except ValueError as error:
+        return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     with connection.cursor() as cursor:
         cursor.execute('SELECT id FROM users WHERE id = %s LIMIT 1', [user_id])
@@ -2761,6 +3099,10 @@ def create_meal(request):
     serializer = MealCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
+
+    _, access_error = require_user_access(request, data['user_id'])
+    if access_error:
+        return access_error
     uploaded_file = request.FILES.get('meal_photo')
 
     if uploaded_file:
@@ -2814,6 +3156,10 @@ def update_meal(request, meal_id=None):
 
     if not user_id:
         return Response({'detail': 'User id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    _, access_error = require_user_access(request, user_id)
+    if access_error:
+        return access_error
 
     try:
         meal_id = int(meal_id)
@@ -2876,6 +3222,10 @@ def delete_meal(request, meal_id=None):
     if not user_id:
         return Response({'detail': 'User id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    _, access_error = require_user_access(request, user_id)
+    if access_error:
+        return access_error
+
     try:
         meal_id = int(meal_id)
     except (TypeError, ValueError):
@@ -2901,7 +3251,9 @@ def password_matches(raw_password, stored_password):
     try:
         identify_hasher(stored_password)
     except ValueError:
-        return raw_password == stored_password
+        # Legacy development accounts may still contain plaintext passwords.
+        # Use a timing-safe comparison and upgrade them immediately on login.
+        return secrets.compare_digest(raw_password, stored_password)
 
     return check_password(raw_password, stored_password)
 
@@ -2980,6 +3332,39 @@ def get_authenticated_user(request):
         'role': role,
         'created_at': created_at,
     }
+
+
+def require_user_access(request, user_id, allow_trainer=False):
+    """Authenticate a request and enforce ownership of user-scoped data."""
+    actor = get_authenticated_user(request)
+    if not actor:
+        return None, Response(
+            {'detail': 'Authentication is required.'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    try:
+        target_user_id = int(user_id)
+    except (TypeError, ValueError):
+        return actor, Response(
+            {'detail': 'Valid user id is required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if actor['role'] in ['admin', 'owner'] or actor['id'] == target_user_id:
+        return actor, None
+
+    if allow_trainer and actor['role'] == 'trainer':
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT LOWER(role) FROM users WHERE id = %s LIMIT 1', [target_user_id])
+            target = cursor.fetchone()
+        if target and target[0] in MEMBER_SUBSCRIPTION_ROLES:
+            return actor, None
+
+    return actor, Response(
+        {'detail': 'You cannot access this user data.'},
+        status=status.HTTP_403_FORBIDDEN,
+    )
 
 
 @api_view(['POST'])
@@ -3172,6 +3557,12 @@ def sign_in(request):
             {'detail': 'Invalid email or password.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+    try:
+        identify_hasher(stored_password)
+    except ValueError:
+        with connection.cursor() as cursor:
+            cursor.execute('UPDATE users SET password = %s WHERE id = %s', [make_password(password), user_id])
 
     return build_auth_response(
         {

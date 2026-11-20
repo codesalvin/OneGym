@@ -333,6 +333,74 @@ def admin_payments(request):
         return Response(rows_as_dicts(cursor))
 
 
+@api_view(['GET'])
+def admin_reports(request):
+    actor, error = require_admin(request)
+    if error:
+        return error
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT LOWER(role) AS label, COUNT(*) AS value FROM users WHERE is_active=TRUE GROUP BY LOWER(role) ORDER BY label")
+        users_by_role = rows_as_dicts(cursor)
+        cursor.execute("SELECT COALESCE(status, 'free') AS label, COUNT(*) AS value FROM user_subscriptions GROUP BY COALESCE(status, 'free') ORDER BY label")
+        subscriptions_by_status = rows_as_dicts(cursor)
+        cursor.execute("SELECT COALESCE(status, 'unknown') AS label, COUNT(*) AS value, COALESCE(SUM(amount_cents), 0) AS amount_cents FROM payments GROUP BY COALESCE(status, 'unknown') ORDER BY label")
+        payments_by_status = rows_as_dicts(cursor)
+        cursor.execute('SELECT COUNT(*) FROM class_bookings')
+        total_bookings = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM classes')
+        total_classes = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM class_attendance WHERE attendance_status IN ('attended', 'late')")
+        attended = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM class_attendance')
+        attendance_recorded = cursor.fetchone()[0]
+        cursor.execute("SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE status IN ('paid', 'succeeded')")
+        revenue_cents = cursor.fetchone()[0]
+
+    return Response({
+        'generated_at': timezone.now(),
+        'summary': {
+            'total_classes': total_classes,
+            'total_bookings': total_bookings,
+            'attendance_recorded': attendance_recorded,
+            'attended': attended,
+            'revenue_cents': revenue_cents,
+        },
+        'users_by_role': users_by_role,
+        'subscriptions_by_status': subscriptions_by_status,
+        'payments_by_status': payments_by_status,
+    })
+
+
+@api_view(['GET'])
+def admin_support_tickets(request):
+    actor, error = require_admin(request)
+    if error:
+        return error
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''SELECT t.id,t.user_id,t.name,t.email,t.subject,t.message,t.status,t.created_at,t.updated_at
+               FROM support_tickets t ORDER BY t.created_at DESC LIMIT 300'''
+        )
+        return Response(rows_as_dicts(cursor))
+
+
+@api_view(['PATCH'])
+def admin_support_ticket_detail(request, ticket_id):
+    actor, error = require_admin(request)
+    if error:
+        return error
+    ticket_status = str(request.data.get('status') or '').strip().lower()
+    if ticket_status not in {'open', 'in_progress', 'resolved'}:
+        return Response({'detail': 'Status must be open, in progress, or resolved.'}, status=status.HTTP_400_BAD_REQUEST)
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute('UPDATE support_tickets SET status=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s', [ticket_status, ticket_id])
+        if not cursor.rowcount:
+            return Response({'detail': 'Support request not found.'}, status=status.HTTP_404_NOT_FOUND)
+        audit(cursor, actor['id'], 'update_support_ticket', 'support_ticket', ticket_id, {'status': ticket_status})
+    return Response({'detail': 'Support request updated.'})
+
+
 @api_view(['GET', 'POST'])
 def admin_notifications(request):
     actor, error = require_admin(request)

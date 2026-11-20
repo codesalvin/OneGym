@@ -950,6 +950,14 @@
   margin: 0;
 }
 
+.trainer-client-count {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
 .trainer-section-title button,
 .trainer-section-title a,
 .trainer-panel-link,
@@ -1245,6 +1253,42 @@
 .trainer-messages-section,
 .trainer-programs-section {
   margin-bottom: 24px;
+}
+
+.trainer-attendance-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  margin-top: 18px;
+  padding: 22px;
+}
+
+.trainer-attendance-panel .trainer-panel-heading > button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 8px;
+}
+
+.trainer-attendance-row {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 14px 0;
+}
+
+.trainer-attendance-row div { display: grid; gap: 4px; }
+.trainer-attendance-row small { color: var(--dim); }
+.trainer-attendance-row select {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 10px 12px;
 }
 
 .trainer-client-grid,

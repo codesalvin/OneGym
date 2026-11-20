@@ -316,8 +316,24 @@ function decodeAiJsonString(value = '') {
 }
 
 function normalizeAiContent(body, cards = [], note = '') {
+  const normalizedCards = Array.isArray(cards) ? cards : [];
+  const genericReplies = new Set([
+    'your recommendation is ready below.',
+    'here is your recommendation.',
+    'assistant recommendation',
+  ]);
+
   if (typeof body !== 'string' || !body.trim().startsWith('{')) {
-    return { body, cards: Array.isArray(cards) ? cards : [], note };
+    const cleanedBody = String(body || '').trim();
+    if (genericReplies.has(cleanedBody.toLowerCase())) {
+      const firstCard = normalizedCards[0];
+      return {
+        body: firstCard?.detail || firstCard?.title || 'This earlier response was incomplete. Please ask the assistant again.',
+        cards: normalizedCards,
+        note,
+      };
+    }
+    return { body: cleanedBody, cards: normalizedCards, note };
   }
 
   let parsed;
@@ -342,7 +358,7 @@ function normalizeAiContent(body, cards = [], note = '') {
 
   return {
     body: parsed.summary || parsed.reply || body,
-    cards: Array.isArray(parsed.cards) ? parsed.cards : (Array.isArray(cards) ? cards : []),
+    cards: Array.isArray(parsed.cards) ? parsed.cards : normalizedCards,
     note: parsed.note || note,
   };
 }
@@ -592,6 +608,7 @@ export function MemberDashboardPage() {
   const [pendingMealDelete, setPendingMealDelete] = useState(null);
   const [isSavingMealEdit, setIsSavingMealEdit] = useState(false);
   const [isDeletingMeal, setIsDeletingMeal] = useState(false);
+  const [dashboardSearch, setDashboardSearch] = useState('');
   const [aiInput, setAiInput] = useState('');
   const [aiMessages, setAiMessages] = useState([]);
   const [isAiSending, setIsAiSending] = useState(false);
@@ -613,6 +630,11 @@ export function MemberDashboardPage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [manualFuelEdit, setManualFuelEdit] = useState(false);
   const [personalRecords, setPersonalRecords] = useState([]);
+  const [globalLeaderboard, setGlobalLeaderboard] = useState([]);
+  const [reviewForm, setReviewForm] = useState({ review_type: 'class', target_id: '', rating: '5', comment: '' });
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [isReviewError, setIsReviewError] = useState(false);
+  const [isSavingReview, setIsSavingReview] = useState(false);
   const [leaderboardFilters, setLeaderboardFilters] = useState({
     category: 'all',
     exercise: 'all',
@@ -630,6 +652,38 @@ export function MemberDashboardPage() {
     () => chatTargets.find((target) => String(target.id) === String(selectedTrainerId)) || null,
     [chatTargets, selectedTrainerId],
   );
+  const dashboardSearchResults = useMemo(() => {
+    const query = dashboardSearch.trim().toLowerCase();
+    if (!query) return [];
+
+    const results = [];
+    upcomingClasses.forEach((item) => {
+      const label = item.title || item.name || 'Class';
+      const detail = `${item.instructor_name || ''} ${item.room || ''}`.trim();
+      if (`${label} ${detail}`.toLowerCase().includes(query)) {
+        results.push({ id: `class-${item.id}`, label, detail: detail || 'Class', tab: 'classes' });
+      }
+    });
+    workouts.forEach((item) => {
+      const label = item.name || 'Workout';
+      if (label.toLowerCase().includes(query)) {
+        results.push({ id: `workout-${item.id}`, label, detail: 'Workout', tab: 'training' });
+      }
+    });
+    meals.forEach((item) => {
+      const label = item.description || item.meal_type || 'Meal';
+      if (`${label} ${item.meal_type || ''}`.toLowerCase().includes(query)) {
+        results.push({ id: `meal-${item.id}`, label, detail: item.meal_type || 'Meal', tab: 'food' });
+      }
+    });
+    chatTargets.forEach((item) => {
+      const label = item.username || item.email || 'Trainer';
+      if (`${label} ${item.email || ''}`.toLowerCase().includes(query)) {
+        results.push({ id: `trainer-${item.id}`, label, detail: 'Trainer', tab: 'trainer-chat', trainerId: item.id });
+      }
+    });
+    return results.slice(0, 8);
+  }, [chatTargets, dashboardSearch, meals, upcomingClasses, workouts]);
   const tabHeading = tabHeadings[activeTab] || tabHeadings.overview;
   const needsPrVideoProof = prForm.record_type === 'weight' && Number(prForm.value) > 250;
   const todayDate = toDateInputValue();
@@ -797,7 +851,7 @@ export function MemberDashboardPage() {
       })
       .then((data) => {
         if (!isMounted) return;
-        const updated = { ...user, ...data, profile_photo_url: resolveMediaUrl(data.profile_photo_url) };
+        const updated = { ...data, profile_photo_url: resolveMediaUrl(data.profile_photo_url) };
         setUser(updated);
         setProfileForm(profileFormFromUser(updated));
         setProfilePhotoPreview(resolveMediaUrl(data.profile_photo_url));
@@ -821,6 +875,25 @@ export function MemberDashboardPage() {
       setPrMessage(error instanceof Error ? error.message : 'Unable to load personal records.');
     });
   }, [loadPersonalRecords]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let isMounted = true;
+    fetch(`${API_BASE_URL}/leaderboard/`, { credentials: 'include' })
+      .then(async (response) => {
+        const data = await parseResponse(response);
+        if (!response.ok) throw new Error(data.detail || 'Unable to load leaderboard.');
+        if (isMounted) setGlobalLeaderboard(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setGlobalLeaderboard([]);
+          setIsPrError(true);
+          setPrMessage(error instanceof Error ? error.message : 'Unable to load leaderboard.');
+        }
+      });
+    return () => { isMounted = false; };
+  }, [user?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -903,7 +976,14 @@ export function MemberDashboardPage() {
 
   useEffect(() => {
     if (manualFuelEdit) return;
-    const suggested = suggestDailyFuel(profileForm);
+    const suggested = suggestDailyFuel({
+      current_weight: profileForm.current_weight,
+      goal_weight: profileForm.goal_weight,
+      weekly_goal: profileForm.weekly_goal,
+      weekly_target: profileForm.weekly_target,
+      weight_goal: profileForm.weight_goal,
+      training_style: profileForm.training_style,
+    });
     if (!suggested) return;
     setProfileForm((current) => ({ ...current, ...suggested }));
   }, [
@@ -965,14 +1045,13 @@ export function MemberDashboardPage() {
   }), [displayName, nutrition]);
   const visibleAiMessages = [aiIntro, ...aiMessages];
   const leaderboardOptions = useMemo(() => {
-    const categories = [...new Set(personalRecords.map((record) => record.category).filter(Boolean))].sort();
-    const exercises = [...new Set(personalRecords.map((record) => record.exercise_name).filter(Boolean))].sort();
-    const recordTypes = [...new Set(personalRecords.map((record) => record.record_type).filter(Boolean))].sort();
+    const categories = [...new Set(globalLeaderboard.map((record) => record.category).filter(Boolean))].sort();
+    const exercises = [...new Set(globalLeaderboard.map((record) => record.exercise_name).filter(Boolean))].sort();
+    const recordTypes = [...new Set(globalLeaderboard.map((record) => record.record_type).filter(Boolean))].sort();
     return { categories, exercises, recordTypes };
-  }, [personalRecords]);
+  }, [globalLeaderboard]);
   const leaderboardRows = useMemo(() => {
-    return personalRecords
-      .filter(isPrVerified)
+    return globalLeaderboard
       .filter((record) => {
         const categoryMatch = leaderboardFilters.category === 'all' || record.category === leaderboardFilters.category;
         const exerciseMatch = leaderboardFilters.exercise === 'all' || record.exercise_name === leaderboardFilters.exercise;
@@ -984,7 +1063,7 @@ export function MemberDashboardPage() {
         if (valueDiff !== 0) return valueDiff;
         return new Date(second.recorded_at) - new Date(first.recorded_at);
       });
-  }, [leaderboardFilters, personalRecords]);
+  }, [globalLeaderboard, leaderboardFilters]);
   const progressAnalytics = useMemo(() => {
     const days = recentDayKeys(7);
     const workoutCounts = days.map((day) => ({
@@ -1320,6 +1399,31 @@ export function MemberDashboardPage() {
       setClassAction(null);
     } finally {
       setIsClassSubmitting(false);
+    }
+  }
+
+  async function submitReview(event) {
+    event.preventDefault();
+    if (!reviewForm.target_id || isSavingReview) return;
+    setIsSavingReview(true);
+    setReviewMessage('');
+    setIsReviewError(false);
+    try {
+      const response = await fetch(`${API_BASE_URL}/reviews/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...reviewForm, target_id: Number(reviewForm.target_id), rating: Number(reviewForm.rating) }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) throw new Error(data.detail || 'Unable to save review.');
+      setReviewMessage(data.detail || 'Review saved.');
+      setReviewForm((current) => ({ ...current, rating: '5', comment: '' }));
+    } catch (error) {
+      setIsReviewError(true);
+      setReviewMessage(error instanceof Error ? error.message : 'Unable to save review.');
+    } finally {
+      setIsSavingReview(false);
     }
   }
 
@@ -1877,7 +1981,32 @@ export function MemberDashboardPage() {
             <div className="topbar-tools">
               <div className="search-wrapper">
                 <span className="material-symbols-outlined search-icon">search</span>
-                <input className="search-input" placeholder="Search classes, meals..." type="text" />
+                <input
+                  aria-label="Search dashboard"
+                  className="search-input"
+                  onChange={(event) => setDashboardSearch(event.target.value)}
+                  placeholder="Search classes, meals..."
+                  type="search"
+                  value={dashboardSearch}
+                />
+                {dashboardSearch.trim() ? (
+                  <div className="dashboard-search-results">
+                    {dashboardSearchResults.length ? dashboardSearchResults.map((result) => (
+                      <button
+                        key={result.id}
+                        onClick={() => {
+                          if (result.trainerId) openTrainerChat(result.trainerId);
+                          else openDashboardTab(result.tab);
+                          setDashboardSearch('');
+                        }}
+                        type="button"
+                      >
+                        <strong>{result.label}</strong>
+                        <small>{result.detail}</small>
+                      </button>
+                    )) : <p>No matching classes, workouts, meals, or trainers.</p>}
+                  </div>
+                ) : null}
               </div>
               <NotificationBell apiBaseUrl={API_BASE_URL} onOpenMessage={() => openDashboardTab('trainer-chat')} />
               <button className="top-avatar-link" onClick={() => openDashboardTab('profile')} type="button">
@@ -2356,6 +2485,18 @@ export function MemberDashboardPage() {
                   )}
                 </div>
               </div>
+
+              <form className="card member-review-form" onSubmit={submitReview}>
+                <div className="class-panel-title"><span>Leave a review</span><small>Share your experience</small></div>
+                <div className="member-review-fields">
+                  <label className="dashboard-field"><span>Review</span><select value={reviewForm.review_type} onChange={(event) => setReviewForm((current) => ({ ...current, review_type: event.target.value, target_id: '' }))}><option value="class">Class</option><option value="trainer">Trainer</option></select></label>
+                  <label className="dashboard-field"><span>{reviewForm.review_type === 'class' ? 'Class' : 'Trainer'}</span><select required value={reviewForm.target_id} onChange={(event) => setReviewForm((current) => ({ ...current, target_id: event.target.value }))}><option value="">Choose one</option>{reviewForm.review_type === 'class' ? bookings.map((item) => <option key={item.class_id} value={item.class_id}>{item.title}</option>) : [...new Map(bookings.filter((item) => item.trainer_id).map((item) => [item.trainer_id, item])).values()].map((item) => <option key={item.trainer_id} value={item.trainer_id}>{item.instructor_name || 'Trainer'}</option>)}</select></label>
+                  <label className="dashboard-field"><span>Rating</span><select value={reviewForm.rating} onChange={(event) => setReviewForm((current) => ({ ...current, rating: event.target.value }))}>{[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} star{rating === 1 ? '' : 's'}</option>)}</select></label>
+                </div>
+                <label className="dashboard-field"><span>Comment</span><textarea maxLength="2000" onChange={(event) => setReviewForm((current) => ({ ...current, comment: event.target.value }))} placeholder="What went well?" rows="3" value={reviewForm.comment} /></label>
+                <button className="btn btn-primary" disabled={isSavingReview || !reviewForm.target_id} type="submit">{isSavingReview ? 'Saving…' : 'Submit review'}</button>
+                {reviewMessage ? <p className={`dashboard-message ${isReviewError ? 'error' : 'success'}`}>{reviewMessage}</p> : null}
+              </form>
             </section>
           ) : activeTab === 'training' ? (
             <section className="training-tab fade">
@@ -2861,7 +3002,7 @@ export function MemberDashboardPage() {
                       <div className="leaderboard-rank">{index + 1}</div>
                       <div>
                         <strong>{record.exercise_name}</strong>
-                        <small>{record.category || 'Personal record'}</small>
+                        <small>{record.username || 'Member'} · {record.category || 'Personal record'}</small>
                       </div>
                       <span>{record.record_type}</span>
                       <strong>{Number(record.value).toLocaleString()} {record.unit}</strong>

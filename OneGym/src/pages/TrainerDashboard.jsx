@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './TrainerDashboard.css';
 import { NotificationBell } from '../components/NotificationBell';
 import logoImage from '../../images/logo.png';
@@ -203,6 +203,10 @@ export function TrainerDashboardPage() {
   const [isClassError, setIsClassError] = useState(false);
   const [isCreatingClass, setIsCreatingClass] = useState(false);
   const [editingClassId, setEditingClassId] = useState(null);
+  const [attendanceClass, setAttendanceClass] = useState(null);
+  const [attendanceRows, setAttendanceRows] = useState([]);
+  const [attendanceMessage, setAttendanceMessage] = useState('');
+  const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
   const [isAccessVerified, setIsAccessVerified] = useState(false);
   const [storedTrainer, setStoredTrainer] = useState(() => getStoredUser() || {});
   const [profilePhotoFile, setProfilePhotoFile] = useState(null);
@@ -224,14 +228,14 @@ export function TrainerDashboardPage() {
   const profilePhotoInputRef = useRef(null);
   const pendingReadConversationIdsRef = useRef(new Set());
 
-  async function loadDashboardData() {
+  const loadDashboardData = useCallback(async () => {
     try {
       const conversationRequest = fetch(`${API_BASE_URL}/trainer-chat/conversations/`, {
         credentials: 'include',
       });
       const [usersResponse, classesResponse, conversationsResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/users/`, { credentials: 'include' }),
-        fetch(`${API_BASE_URL}/classes/`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/classes/?include_history=1`, { credentials: 'include' }),
         conversationRequest,
       ]);
 
@@ -304,14 +308,14 @@ export function TrainerDashboardPage() {
     } catch (error) {
       setDashboardMessage(error.message);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadDashboardData();
     const interval = window.setInterval(loadDashboardData, REFRESH_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
-  }, []);
+  }, [loadDashboardData]);
 
   useEffect(() => {
     if (!selectedConversationId && conversations.length) {
@@ -337,6 +341,8 @@ export function TrainerDashboardPage() {
         window.clearInterval(interval);
       }
     };
+  // The loader is declared below and reads the latest trainer state on each poll.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, autoRefreshMessages, selectedConversationId]);
 
   useEffect(() => {
@@ -417,7 +423,7 @@ export function TrainerDashboardPage() {
     )));
   }
 
-  async function loadConversationMessages(memberId = selectedConversationId, { silent = false } = {}) {
+  async function loadConversationMessages(memberId, { silent = false } = {}) {
     if (!storedTrainer?.id || !memberId) {
       setConversationMessages([]);
       return;
@@ -643,6 +649,42 @@ export function TrainerDashboardPage() {
       setClassMessage(error.message);
     } finally {
       setIsCreatingClass(false);
+    }
+  }
+
+  async function loadAttendance(item) {
+    setAttendanceClass(item);
+    setIsAttendanceLoading(true);
+    setAttendanceMessage('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/classes/${item.id}/attendance/`, { credentials: 'include' });
+      const data = await readApiResponse(response);
+      if (!response.ok) throw new Error(data?.detail || 'Unable to load attendance.');
+      setAttendanceRows(Array.isArray(data.attendees) ? data.attendees : []);
+    } catch (error) {
+      setAttendanceRows([]);
+      setAttendanceMessage(error.message);
+    } finally {
+      setIsAttendanceLoading(false);
+    }
+  }
+
+  async function updateAttendance(bookingId, attendanceStatus) {
+    if (!attendanceClass) return;
+    setAttendanceMessage('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/classes/${attendanceClass.id}/attendance/`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId, attendance_status: attendanceStatus }),
+      });
+      const data = await readApiResponse(response);
+      if (!response.ok) throw new Error(data?.detail || 'Unable to update attendance.');
+      setAttendanceRows(Array.isArray(data.attendees) ? data.attendees : []);
+      setAttendanceMessage('Attendance updated.');
+    } catch (error) {
+      setAttendanceMessage(error.message);
     }
   }
 
@@ -1031,6 +1073,7 @@ export function TrainerDashboardPage() {
                         <details className="trainer-class-menu">
                           <summary aria-label={`Actions for ${item.session}`}><span className="material-symbols-outlined">more_horiz</span></summary>
                           <button onClick={() => editClass(item)} type="button">Edit class</button>
+                          <button onClick={() => loadAttendance(item)} type="button">Manage attendance</button>
                         </details>
                       )}
                     </div>
@@ -1120,6 +1163,7 @@ export function TrainerDashboardPage() {
                         <details className="trainer-class-menu">
                           <summary aria-label={`Actions for ${item.session}`}><span className="material-symbols-outlined">more_horiz</span></summary>
                           <button onClick={() => editClass(item)} type="button">Edit class</button>
+                          <button onClick={() => loadAttendance(item)} type="button">Manage attendance</button>
                         </details>
                       )}
                     </div>
@@ -1133,6 +1177,26 @@ export function TrainerDashboardPage() {
                 )}
               </div>
             </article>
+            {attendanceClass && (
+              <article className="trainer-attendance-panel">
+                <div className="trainer-panel-heading">
+                  <div><p className="trainer-eyebrow">Attendance</p><h2>{attendanceClass.session || attendanceClass.title}</h2></div>
+                  <button onClick={() => setAttendanceClass(null)} type="button"><span className="material-symbols-outlined">close</span></button>
+                </div>
+                {isAttendanceLoading ? <p>Loading attendance…</p> : attendanceRows.length ? attendanceRows.map((row) => (
+                  <div className="trainer-attendance-row" key={row.booking_id}>
+                    <div><strong>{row.username}</strong><small>{row.email}</small></div>
+                    <select onChange={(event) => updateAttendance(row.booking_id, event.target.value)} value={row.attendance_status || 'booked'}>
+                      <option value="booked">Booked</option>
+                      <option value="attended">Attended</option>
+                      <option value="late">Late</option>
+                      <option value="absent">Absent</option>
+                    </select>
+                  </div>
+                )) : <div className="trainer-empty-state"><strong>No members booked yet.</strong></div>}
+                {attendanceMessage ? <p className="trainer-class-message">{attendanceMessage}</p> : null}
+              </article>
+            )}
           </section>
         )}
 
@@ -1142,7 +1206,7 @@ export function TrainerDashboardPage() {
               <p className="trainer-eyebrow">Client Management</p>
               <h2>Active Clients</h2>
             </div>
-            <button type="button">Add Client</button>
+            <span className="trainer-client-count">{matchingClientCards.length} visible</span>
           </div>
           <div className="trainer-client-grid">
             {matchingClientCards.length ? matchingClientCards.map((client) => (

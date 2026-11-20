@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { NavBar } from '../components/NavBar';
 import './AiAssistant.css';
@@ -67,7 +67,7 @@ export function TrainerChatPage() {
     return chatTargets.find((target) => String(target.id) === String(selectedTargetId)) || null;
   }, [selectedTargetId, chatTargets]);
 
-  async function loadChatTargets() {
+  const loadChatTargets = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/users/`, { credentials: 'include' });
       const data = await readApiResponse(response);
@@ -81,17 +81,18 @@ export function TrainerChatPage() {
         : [];
       setChatTargets(targetUsers);
 
-      if (!selectedTargetId && targetUsers.length) {
-        setSelectedTargetId(String(targetUsers[0].id));
+      setSelectedTargetId((current) => {
+        if (current || !targetUsers.length) return current;
         setSearchParams({ [searchKey]: targetUsers[0].id });
-      }
+        return String(targetUsers[0].id);
+      });
     } catch (error) {
       setIsError(true);
       setStatusMessage(error.message);
     }
-  }
+  }, [isTrainerUser, searchKey, setSearchParams, targetLabel, targetRole]);
 
-  async function loadMessages(targetId = selectedTargetId) {
+  const loadMessages = useCallback(async (targetId) => {
     if (!user?.id || !targetId) {
       setMessages([]);
       return;
@@ -117,17 +118,17 @@ export function TrainerChatPage() {
       setIsError(true);
       setStatusMessage(error.message);
     }
-  }
+  }, [isTrainerUser, user?.id]);
 
   useEffect(() => {
     loadChatTargets();
-  }, []);
+  }, [loadChatTargets]);
 
   useEffect(() => {
     if (selectedTargetId) {
       loadMessages(selectedTargetId);
     }
-  }, [selectedTargetId]);
+  }, [loadMessages, selectedTargetId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({

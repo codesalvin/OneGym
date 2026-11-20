@@ -341,6 +341,27 @@ class Notification(models.Model):
         db_table = 'notifications'
 
 
+class SupportTicket(models.Model):
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('in_progress', 'In progress'),
+        ('resolved', 'Resolved'),
+    ]
+
+    user = models.ForeignKey(User, models.SET_NULL, db_column='user_id', blank=True, null=True)
+    name = models.CharField(max_length=150)
+    email = models.EmailField(max_length=254)
+    subject = models.CharField(max_length=180)
+    message = models.TextField()
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'support_tickets'
+        ordering = ['-created_at']
+
+
 class ClassAttendance(models.Model):
     booking = models.OneToOneField(ClassBooking, models.CASCADE, db_column='booking_id')
     recorded_by = models.ForeignKey(User, models.SET_NULL, db_column='recorded_by', blank=True, null=True)
