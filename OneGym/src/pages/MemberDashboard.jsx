@@ -1932,7 +1932,10 @@ export function MemberDashboardPage() {
 
   return (
     <div className={`member-dashboard-page tab-${activeTab} ${isNavOpen ? 'nav-open' : ''}`}>
-      <aside className="sidebar">
+      <aside className="sidebar" id="member-sidebar">
+        <button aria-label="Close member menu" className="member-sidebar-close" onClick={() => setIsNavOpen(false)} type="button">
+          <span className="material-symbols-outlined">close</span>
+        </button>
         <a className="brand" href="/">
           <div className="brand-mark">OG</div>
           <div className="brand-text">
@@ -1969,7 +1972,7 @@ export function MemberDashboardPage() {
           <header className="topbar fade">
             <div className="topbar-left">
               <div className="topbar-title-row">
-                <button className="menu-btn" onClick={() => setIsNavOpen(true)} type="button">
+                <button aria-controls="member-sidebar" aria-expanded={isNavOpen} aria-label="Open member menu" className="menu-btn" onClick={() => setIsNavOpen(true)} type="button">
                   <span className="material-symbols-outlined">menu</span>
                 </button>
                 <div>

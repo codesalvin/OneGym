@@ -111,7 +111,7 @@ export function NavBar() {
         <ul className="nav-links">
           {/* Features Dropdown Item */}
           <li className="nav-dropdown">
-            <a href="#" className="nav-dropdown-trigger">Features</a>
+            <a href="/#features" className="nav-dropdown-trigger">Features</a>
             <div className={`nav-dropdown-menu feature-columns-${visibleFeatureGroups.length}`}>
               {visibleFeatureGroups.map((group) => (
                 <div className="mega-col" key={group.title}>
@@ -151,9 +151,10 @@ export function NavBar() {
               {!isTrainer && !isAdmin && <a href="/member-dashboard?tab=classes">Classes</a>}
               {!isTrainer && !isAdmin && <a href="/member-dashboard?tab=trainer-chat">Trainer Chat</a>}
               {!isTrainer && !isAdmin && <a href="/member-dashboard?tab=ai">AI Assistant</a>}
-              {!isAdmin && <a href="/member-dashboard?tab=profile">Profile</a>}
-              {!isAdmin && <a href="#">Settings</a>}
-              {!isTrainer && !isAdmin && <a href="#">Membership</a>}
+              {!isTrainer && !isAdmin && <a href="/member-dashboard?tab=profile">Profile</a>}
+              {isTrainer && <a href="/trainer-dashboard">Trainer settings</a>}
+              {!isTrainer && !isAdmin && <a href="/member-dashboard?tab=profile">Settings</a>}
+              {!isTrainer && !isAdmin && <a href="/pricing">Membership</a>}
               <button type="button" onClick={handleLogout}>Logout</button>
             </div>
           </div>

@@ -71,6 +71,22 @@
   z-index: 80;
 }
 
+.member-dashboard-page .member-sidebar-close {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  display: none;
+  height: 42px;
+  justify-content: center;
+  position: absolute;
+  right: 16px;
+  top: 14px;
+  width: 42px;
+}
+
 .member-dashboard-page .brand {
   align-items: center;
   display: flex;
@@ -2963,8 +2979,14 @@
   }
 
   .member-dashboard-page .sidebar {
+    max-width: calc(100vw - 48px);
+    padding-top: 72px;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
+  }
+
+  .member-dashboard-page .member-sidebar-close {
+    display: inline-flex;
   }
 
   .member-dashboard-page.nav-open .sidebar {

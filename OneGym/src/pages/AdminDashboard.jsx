@@ -105,7 +105,7 @@ async function api(path, options = {}) {
     window.location.replace('/signin?reason=session-expired');
     throw new Error('Session expired.');
   }
-  const data = response.status === 204 ? null : await response.json().catch(() => ({}));
+  const data = response.status === 204 ? null : await readApiResponse(response);
   if (!response.ok) throw new Error(data?.detail || 'Request failed.');
   return data;
 }
@@ -338,9 +338,16 @@ export function AdminDashboardPage() {
   const activeLabel = NAV_ITEMS.find(item => item[0] === active)?.[1];
 
   return <div className="admin-shell">
-    <button className="admin-mobile-menu" onClick={() => setMobileOpen(true)}><span className="material-symbols-outlined">menu</span></button>
+    <button
+      aria-controls="admin-sidebar"
+      aria-expanded={mobileOpen}
+      aria-label={mobileOpen ? 'Close administration menu' : 'Open administration menu'}
+      className={`admin-mobile-menu ${mobileOpen ? 'open' : ''}`}
+      onClick={() => setMobileOpen(current => !current)}
+      type="button"
+    ><span className="material-symbols-outlined">{mobileOpen ? 'close' : 'menu'}</span></button>
     {mobileOpen && <button className="admin-backdrop" aria-label="Close menu" onClick={() => setMobileOpen(false)} />}
-    <aside className={`admin-sidebar ${mobileOpen ? 'open' : ''}`}>
+    <aside className={`admin-sidebar ${mobileOpen ? 'open' : ''}`} id="admin-sidebar">
       <a className="admin-brand" href="/"><img src={logoImage} alt="OneGym" /><div><strong>OneGym</strong><small>Administration</small></div></a>
       <nav>{NAV_ITEMS.map(([id, label, icon]) => <button className={active === id ? 'active' : ''} key={id} onClick={() => changeTab(id)}>
         <span className="material-symbols-outlined">{icon}</span><span>{label}</span>

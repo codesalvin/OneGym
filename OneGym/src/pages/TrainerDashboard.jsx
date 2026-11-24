@@ -810,7 +810,10 @@ export function TrainerDashboardPage() {
   return (
     <div className={`trainer-dashboard-page tab-${activeTab} ${isNavOpen ? 'nav-open' : ''}`}>
       <button aria-label="Close sidebar" className="trainer-backdrop" onClick={() => setIsNavOpen(false)} type="button" />
-      <aside className="trainer-sidebar">
+      <aside className="trainer-sidebar" id="trainer-sidebar">
+        <button aria-label="Close trainer menu" className="trainer-sidebar-close" onClick={() => setIsNavOpen(false)} type="button">
+          <span className="material-symbols-outlined">close</span>
+        </button>
         <a className="trainer-brand" href="/">
           <span className="trainer-brand-mark"><img alt="OneGym" src={logoImage} /></span>
           <span className="trainer-brand-text">
@@ -841,7 +844,7 @@ export function TrainerDashboardPage() {
       <main className="trainer-main">
         <header className="trainer-topbar">
           <div className="trainer-topbar-title-row">
-            <button className="trainer-menu-btn" onClick={() => setIsNavOpen(true)} type="button">
+            <button aria-controls="trainer-sidebar" aria-expanded={isNavOpen} aria-label="Open trainer menu" className="trainer-menu-btn" onClick={() => setIsNavOpen(true)} type="button">
               <span className="material-symbols-outlined">menu</span>
             </button>
             <a className="trainer-mobile-brand" href="/">
