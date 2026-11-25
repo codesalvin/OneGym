@@ -1,7 +1,7 @@
 from unittest.mock import patch
 import json
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth.hashers import make_password
 from rest_framework.test import APIRequestFactory
@@ -162,6 +162,42 @@ class GeminiResponseTests(SimpleTestCase):
         self.assertEqual(estimate['protein_g'], 35)
         self.assertEqual(estimate['carbs_g'], 70)
         self.assertEqual(estimate['fats_g'], 18)
+
+    @override_settings(GEMINI_API_KEY='test', GEMINI_MODEL='test-model')
+    def test_photo_retries_missing_macro_and_accepts_explicit_zero(self):
+        photo = SimpleUploadedFile('meal.jpg', b'\xff\xd8\xff\x00', content_type='image/jpeg')
+        estimate = {'description': 'Apple slices', 'calories': 80, 'protein_g': 0, 'carbs_g': 21}
+        complete = {**estimate, 'fats_g': 0}
+
+        def gemini_response(data):
+            return {'candidates': [{'content': {'parts': [{'text': json.dumps(data)}]}}]}
+
+        with patch.object(views, 'post_gemini_generate', side_effect=map(gemini_response, [estimate, complete])) as generate:
+            result = views.analyze_food_image(photo)
+
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(result['calories'], 80)
+        self.assertEqual(result['fats_g'], 0)
+
+    def test_assistant_uses_saved_targets_and_requests_missing_profile(self):
+        totals = {'calories': 600, 'protein_g': 20, 'carbs_g': 40, 'fats_g': 10}
+        general = views.build_assistant_prompt('Suggest dinner', [], totals)
+        self.assertIn('ask the member to save these missing fields in Profile', general)
+        self.assertIn('Starting weight (kg): not provided', general)
+        self.assertIn('no saved target', general)
+        self.assertNotIn('2500', general)
+
+        personalized = views.build_assistant_prompt('Suggest dinner', [], totals, {
+            'weekly_goal': 0, 'starting_weight': 76, 'current_weight': 74, 'goal_weight': 74,
+            'weight_goal': 'Maintain weight', 'calorie_goal': 2100,
+        })
+        self.assertIn('Weekly weight change (kg/week): 0', personalized)
+        self.assertIn('Starting weight (kg): 76', personalized)
+        self.assertIn('Current weight (kg): 74', personalized)
+        self.assertIn('Goal weight (kg): 74', personalized)
+        self.assertIn('Tailor suggestions to the saved profile', personalized)
+        self.assertIn('Weight goal: Maintain weight', personalized)
+        self.assertIn('saved target 2100, remaining 1500', personalized)
 
     def test_assistant_parser_does_not_treat_macros_as_nutrition_photo(self):
         reply = views.parse_assistant_reply(json.dumps({

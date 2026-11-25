@@ -52,16 +52,15 @@ const tierTemplates = [
     planKey: 'studio',
     price: 'RM 99',
     period: 'per month',
-    description: 'For gym teams managing trainers, classes, and member activity.',
-    cta: 'Join as trainer',
-    href: '/join-trainer',
+    description: 'A paid membership plan. Trainer and administrator access are assigned separately.',
+    cta: 'Choose Studio',
+    href: '/signin',
     paymentKey: 'studio',
     features: [
-      'Trainer dashboard',
-      'Create and manage classes',
-      'Member messaging',
-      'Certification approval flow',
-      'Operational reports',
+      'Member dashboard',
+      'Class booking',
+      'Workout and nutrition tracking',
+      'AI meal recommendations',
     ],
   },
 ];
@@ -69,7 +68,7 @@ const tierTemplates = [
 const comparison = [
   { label: 'Member tracking', free: 'Basic', pro: 'Advanced', studio: 'Team-wide' },
   { label: 'AI nutrition', free: 'Limited', pro: 'Included', studio: 'Included' },
-  { label: 'Trainer tools', free: '-', pro: 'Chat access', studio: 'Dashboard + classes' },
+  { label: 'Trainer dashboard', free: 'Separate approval', pro: 'Separate approval', studio: 'Separate approval' },
   { label: 'Progress analytics', free: '-', pro: 'Included', studio: 'Included' },
 ];
 
@@ -103,6 +102,7 @@ function pricingTierForPlan(plan) {
     name: plan.name || template?.name || databaseCode,
     databaseCode,
     price: formatPlanPrice(plan),
+    isPaid: Number(plan.price_cents || 0) > 0,
     period: Number(plan.price_cents || 0) === 0 ? 'forever' : 'per month',
   };
 }
@@ -151,23 +151,30 @@ export function PricingPage() {
 
   useEffect(() => {
     let isMounted = true;
-    const storedUser = getStoredUser();
-
-    if (!storedUser?.id) return undefined;
-
-    fetch(`${API_BASE_URL}/users/${storedUser.id}/`, { credentials: 'include' })
-      .then(async (response) => {
-        const data = await response.json().catch(() => null);
-        if (!response.ok || !data) return;
-
+    async function refreshMembership() {
+      const storedUser = getStoredUser();
+      if (!storedUser?.id) return;
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/${storedUser.id}/`, {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!isMounted || !response.ok) return;
+        const data = await response.json();
+        if (!isMounted || getStoredUser()?.id !== storedUser.id) return;
         const updatedUser = { ...storedUser, ...data };
         localStorage.setItem('onegymUser', JSON.stringify(updatedUser));
-        if (isMounted) setUser(updatedUser);
-      })
-      .catch(() => {});
+        setUser(updatedUser);
+      } catch {
+        // Keep the current membership display if the refresh fails.
+      }
+    }
 
+    refreshMembership();
+    window.addEventListener('focus', refreshMembership);
     return () => {
       isMounted = false;
+      window.removeEventListener('focus', refreshMembership);
     };
   }, []);
 
@@ -205,6 +212,10 @@ export function PricingPage() {
         {!plansLoading && !plansError && visibleTiers.length ? <section className="pricing-grid" aria-label="OneGym pricing tiers">
           {visibleTiers.map((tier) => {
             const isCurrentPlan = currentPlan === tier.planKey;
+            const checkoutUnavailable = tier.isPaid && !stripeLinks[tier.paymentKey];
+            const actionLabel = isCurrentPlan ? 'Your plan'
+              : checkoutUnavailable ? 'Checkout unavailable'
+                : tier.isPaid ? (user?.id ? 'Pay with Stripe' : 'Sign in to subscribe') : tier.cta;
             return (
             <article className={`pricing-card ${tier.featured ? 'featured' : ''} ${isCurrentPlan ? 'current' : ''}`} key={tier.name}>
               {tier.featured || isCurrentPlan ? (
@@ -221,14 +232,13 @@ export function PricingPage() {
                 <span>{tier.period}</span>
               </div>
               <a
-                aria-disabled={isCurrentPlan}
+                aria-disabled={isCurrentPlan || checkoutUnavailable}
                 className={`pricing-cta ${tier.featured ? 'primary' : ''} ${isCurrentPlan ? 'current' : ''}`}
-                href={isCurrentPlan ? undefined : paymentHref(tier)}
-                onClick={isCurrentPlan ? (event) => event.preventDefault() : undefined}
+                href={isCurrentPlan || checkoutUnavailable ? undefined : paymentHref(tier)}
                 rel={isStripePayment(tier) ? 'noopener noreferrer' : undefined}
                 target={isStripePayment(tier) ? '_blank' : undefined}
               >
-                {isCurrentPlan ? 'Your plan' : stripeLinks[tier.paymentKey] ? 'Pay with Stripe' : tier.cta}
+                {actionLabel}
               </a>
               <ul>
                 {tier.features.map((feature) => (

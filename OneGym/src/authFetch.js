@@ -1,6 +1,6 @@
 const API_BASE_URL = import.meta.env.DEV
   ? '/api'
-  : (import.meta.env.VITE_API_BASE_URL || '/api');
+  : (import.meta.env.VITE_API_BASE_URL || '/api').trim().replace(/\/+$/, '');
 
 const nativeFetch = window.fetch.bind(window);
 const apiBase = new URL(API_BASE_URL, window.location.origin);

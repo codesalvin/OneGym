@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './MemberDashboard.css';
 import { NotificationBell } from '../components/NotificationBell';
 import './WorkoutHistory.css';
 
 const API_BASE_URL = import.meta.env.DEV
   ? '/api'
-  : (import.meta.env.VITE_API_BASE_URL || '/api');
+  : (import.meta.env.VITE_API_BASE_URL || '/api').trim().replace(/\/+$/, '');
 const API_ROOT = API_BASE_URL.replace(/\/api\/?$/, '');
 const CALORIE_GOAL = 2500;
 const PROTEIN_GOAL = 180;
@@ -229,7 +229,7 @@ function profileFormFromUser(user = {}) {
     starting_weight: user.starting_weight || '',
     current_weight: user.current_weight || '',
     goal_weight: user.goal_weight || '',
-    weekly_goal: user.weekly_goal || '',
+    weekly_goal: user.weekly_goal == null || user.weekly_goal === '' ? '' : Math.abs(Number(user.weekly_goal)),
     calorie_goal: user.calorie_goal || CALORIE_GOAL,
     protein_goal: user.protein_goal || PROTEIN_GOAL,
     carbs_goal: user.carbs_goal || CARBS_GOAL,
@@ -482,7 +482,27 @@ function classIdFor(item) {
 }
 
 function classSlots(item) {
-  return Number(item?.slots ?? item?.available_slots ?? item?.remaining_slots ?? 0);
+  return Math.max(0, Number(item?.available_slots ?? item?.remaining_slots
+    ?? (Number(item?.slots ?? 0) - Number(item?.booked_slots ?? 0))));
+}
+
+async function prepareMealPhoto(file) {
+  const photo = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, 1440 / Math.max(photo.width, photo.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(photo.width * scale));
+    canvas.height = Math.max(1, Math.round(photo.height * scale));
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(photo, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    if (!blob || blob.size > 4 * 1024 * 1024) throw new Error('Photo exceeds upload limit.');
+    return new File([blob], 'meal.jpg', { type: 'image/jpeg' });
+  } finally {
+    photo.close();
+  }
 }
 
 function normalizeMealType(value) {
@@ -532,15 +552,6 @@ function formatDayTitle(key) {
   return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(`${key}T12:00:00`));
 }
 
-function buildAiIntro(displayName, totals, mealCount) {
-  const remainingCalories = Math.max(0, CALORIE_GOAL - totals.calories);
-  const remainingProtein = Math.max(0, PROTEIN_GOAL - totals.protein);
-  if (!mealCount) {
-    return `Good afternoon, ${displayName}. No meals are logged yet today. Add a meal and I can tailor recommendations around your calories and macros.`;
-  }
-  return `Good afternoon, ${displayName}. You have logged ${Math.round(totals.calories).toLocaleString()} kcal and ${Math.round(totals.protein)}g protein today. You still have about ${Math.round(remainingCalories).toLocaleString()} kcal and ${Math.round(remainingProtein)}g protein available.`;
-}
-
 function workoutDate(workout) {
   return workout?.workout_date || workout?.created_at || workout?.date || '';
 }
@@ -584,6 +595,14 @@ export function MemberDashboardPage() {
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [user, setUser] = useState(() => getStoredUser());
+  const calorieGoal = user?.calorie_goal || CALORIE_GOAL;
+  const proteinGoal = user?.protein_goal || PROTEIN_GOAL;
+  const carbsGoal = user?.carbs_goal || CARBS_GOAL;
+  const fatsGoal = user?.fats_goal || FATS_GOAL;
+  const hasNutritionProfile = [user?.starting_weight, user?.current_weight, user?.goal_weight]
+    .every((weight) => Number.isFinite(Number(weight)) && Number(weight) > 0)
+    && user?.weekly_goal != null && String(user.weekly_goal).trim() !== ''
+    && Number.isFinite(Number(user.weekly_goal));
   const [upcomingClasses, setUpcomingClasses] = useState([]);
   const [classesMessage, setClassesMessage] = useState('');
   const [bookedClassIds, setBookedClassIds] = useState(new Set());
@@ -596,6 +615,7 @@ export function MemberDashboardPage() {
   const [meals, setMeals] = useState([]);
   const [mealForm, setMealForm] = useState(emptyMealForm);
   const [mealPhoto, setMealPhoto] = useState(null);
+  const mealPhotoSelection = useRef(0);
   const [mealPhotoPreview, setMealPhotoPreview] = useState('');
   const [mealMessage, setMealMessage] = useState('');
   const [isMealError, setIsMealError] = useState(false);
@@ -722,7 +742,7 @@ export function MemberDashboardPage() {
   }, [user?.id]);
 
   const loadClasses = useCallback(async () => {
-    const response = await fetch(`${API_BASE_URL}/classes/`);
+    const response = await fetch(`${API_BASE_URL}/classes/`, { cache: 'no-store' });
     const data = await parseResponse(response);
     if (!response.ok) throw new Error(data.detail || 'Unable to load classes.');
     const now = Date.now();
@@ -738,7 +758,10 @@ export function MemberDashboardPage() {
       return;
     }
 
-    const response = await fetch(`${API_BASE_URL}/users/${user.id}/bookings/`);
+    const response = await fetch(`${API_BASE_URL}/users/${user.id}/bookings/`, {
+      cache: 'no-store',
+      credentials: 'include',
+    });
     const data = await parseResponse(response);
     if (!response.ok) throw new Error(data.detail || 'Unable to load bookings.');
     const rows = Array.isArray(data) ? data : data.bookings || [];
@@ -1016,10 +1039,10 @@ export function MemberDashboardPage() {
     return {
       todaysMeals,
       ...totals,
-      remaining: Math.max(0, CALORIE_GOAL - totals.calories),
-      fuelPercent: pct(totals.calories, CALORIE_GOAL),
+      remaining: Math.max(0, calorieGoal - totals.calories),
+      fuelPercent: pct(totals.calories, calorieGoal),
     };
-  }, [meals]);
+  }, [calorieGoal, meals]);
 
   const filteredMeals = useMemo(() => {
     const visible = meals.filter((meal) => {
@@ -1040,9 +1063,11 @@ export function MemberDashboardPage() {
   const aiIntro = useMemo(() => ({
     id: 'intro',
     role: 'assistant',
-    title: `Good afternoon, ${displayName}.`,
-    body: buildAiIntro(displayName, nutrition, nutrition.todaysMeals.length),
-  }), [displayName, nutrition]);
+    title: `Hi, ${displayName}.`,
+    body: hasNutritionProfile
+      ? 'Ask for meal ideas based on your saved profile, nutrition targets and meals logged today.'
+      : 'For personalized meal suggestions, save your weekly weight-change goal, starting weight, current weight and goal weight in Profile. Enter 0 for your weekly goal if you want to maintain your weight.',
+  }), [displayName, hasNutritionProfile]);
   const visibleAiMessages = [aiIntro, ...aiMessages];
   const leaderboardOptions = useMemo(() => {
     const categories = [...new Set(globalLeaderboard.map((record) => record.category).filter(Boolean))].sort();
@@ -1087,7 +1112,7 @@ export function MemberDashboardPage() {
       workoutCounts,
       calorieDays,
       maxWorkoutCount: Math.max(1, ...workoutCounts.map((day) => day.value)),
-      maxCalories: Math.max(1, CALORIE_GOAL, ...calorieDays.map((day) => day.value)),
+      maxCalories: Math.max(1, calorieGoal, ...calorieDays.map((day) => day.value)),
       weight: {
         start: startWeight,
         current: currentWeight,
@@ -1100,7 +1125,7 @@ export function MemberDashboardPage() {
         latest: latestRecord,
       },
     };
-  }, [meals, personalRecords, profileForm.current_weight, profileForm.goal_weight, profileForm.starting_weight, user?.current_weight, user?.goal_weight, user?.starting_weight, workouts]);
+  }, [calorieGoal, meals, personalRecords, profileForm.current_weight, profileForm.goal_weight, profileForm.starting_weight, user?.current_weight, user?.goal_weight, user?.starting_weight, workouts]);
 
   function updateMealField(field, value) {
     setMealForm((current) => ({ ...current, [field]: value }));
@@ -1228,9 +1253,15 @@ export function MemberDashboardPage() {
 
   function applySuggestedFuel() {
     const suggested = suggestDailyFuel(profileForm);
-    if (!suggested) return;
+    if (!suggested) {
+      setIsProfileError(true);
+      setProfileMessage('Enter your current weight to calculate suggested nutrition targets.');
+      return;
+    }
     setProfileForm((current) => ({ ...current, ...suggested }));
     setManualFuelEdit(false);
+    setIsProfileError(false);
+    setProfileMessage('Targets recalculated. Save your profile to use them in the assistant.');
   }
 
   async function saveProfile(event) {
@@ -1251,7 +1282,7 @@ export function MemberDashboardPage() {
       payload.append('starting_weight', profileForm.starting_weight || '');
       payload.append('current_weight', profileForm.current_weight || '');
       payload.append('goal_weight', profileForm.goal_weight || '');
-      payload.append('weekly_goal', profileForm.weekly_goal || '');
+      payload.append('weekly_goal', profileForm.weekly_goal ?? '');
       payload.append('calorie_goal', profileForm.calorie_goal || '');
       payload.append('protein_goal', profileForm.protein_goal || '');
       payload.append('carbs_goal', profileForm.carbs_goal || '');
@@ -1370,7 +1401,7 @@ export function MemberDashboardPage() {
   }
 
   async function confirmClassAction() {
-    if (!classAction || !user?.id) return;
+    if (!classAction || !user?.id || isClassSubmitting) return;
 
     setIsClassSubmitting(true);
     setClassesMessage('');
@@ -1381,17 +1412,23 @@ export function MemberDashboardPage() {
           : `${API_BASE_URL}/bookings/${classAction.item.booking_id || classAction.item.id}/cancel/?user_id=${user.id}`;
       const response = await fetch(endpoint, {
         method: classAction.type === 'book' ? 'POST' : 'DELETE',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: user.id }),
       });
+      if (response.status === 401) {
+        throw new Error('Your sign-in has expired or is missing. Sign in again to manage bookings.');
+      }
       const data = await parseResponse(response);
       if (!response.ok) throw new Error(data.detail || 'Unable to update this booking.');
 
-      setUpcomingClasses(await loadClasses());
-      await loadBookings();
+      const refresh = await Promise.allSettled([loadClasses(), loadBookings()]);
+      if (refresh[0].status === 'fulfilled') setUpcomingClasses(refresh[0].value);
       setClassNotice({
         title: classAction.type === 'book' ? 'Booking confirmed' : 'Booking cancelled',
-        body: data.detail || 'Your booking has been updated.',
+        body: refresh.every((result) => result.status === 'fulfilled')
+          ? (data.detail || 'Your booking has been updated.')
+          : 'Your booking was updated. Reload the page to refresh the schedule and your bookings.',
       });
       setClassAction(null);
     } catch (error) {
@@ -1427,13 +1464,27 @@ export function MemberDashboardPage() {
     }
   }
 
-  function handleMealPhotoChange(event) {
+  async function handleMealPhotoChange(event) {
     const file = event.target.files?.[0];
     if (!file) return;
+    const selection = ++mealPhotoSelection.current;
     if (mealPhotoPreview) URL.revokeObjectURL(mealPhotoPreview);
-    setMealPhoto(file);
-    setMealPhotoPreview(URL.createObjectURL(file));
-    setMealMessage('');
+    event.target.value = '';
+    setMealPhoto(null);
+    setMealPhotoPreview('');
+    setMealMessage('Preparing photo…');
+    setIsMealError(false);
+    try {
+      const photo = await prepareMealPhoto(file);
+      if (selection !== mealPhotoSelection.current) return;
+      setMealPhoto(photo);
+      setMealPhotoPreview(URL.createObjectURL(photo));
+      setMealMessage('');
+    } catch {
+      if (selection !== mealPhotoSelection.current) return;
+      setIsMealError(true);
+      setMealMessage('Could not prepare this photo. Try a JPG, PNG or WebP image.');
+    }
   }
 
   async function analyzeMealPhoto() {
@@ -1445,16 +1496,21 @@ export function MemberDashboardPage() {
 
     setIsAnalyzingMeal(true);
     setMealMessage('');
+    const selection = mealPhotoSelection.current;
     try {
       const formData = new FormData();
       formData.append('user_id', user.id);
       formData.append('meal_photo', mealPhoto);
 
-      const response = await fetch(`${API_BASE_URL}/meals/analyze/`, { method: 'POST', body: formData });
+      const response = await fetch(`${API_BASE_URL}/meals/analyze/`, {
+        method: 'POST', credentials: 'include', body: formData,
+      });
       const data = await parseResponse(response);
+      if (selection !== mealPhotoSelection.current) return;
       if (!response.ok) throw new Error(data.detail || 'Food analysis service is unavailable.');
-      const hasCompleteNutritionEstimate = [data.calories, data.protein_g, data.carbs_g, data.fats_g]
-        .every((value) => Number(value) > 0);
+      const hasCompleteNutritionEstimate = data.calories > 0
+        && [data.protein_g, data.carbs_g, data.fats_g]
+          .every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0);
       if (!hasCompleteNutritionEstimate) {
         throw new Error(data.detail || 'A complete calorie and macronutrient estimate was not returned. Try a clearer, closer food photo.');
       }
@@ -1467,9 +1523,10 @@ export function MemberDashboardPage() {
         carbs: String(Math.round(toNumber(data.carbs_g || data.carbs || data.carbohydrates_g))),
         fats: String(Math.round(toNumber(data.fats_g || data.fats || data.fat_g))),
       }));
-      setMealMessage('Nutrition estimate generated from photo.');
+      setMealMessage('Photo estimate only. Review the portions and nutrition values before logging.');
       setIsMealError(false);
     } catch (error) {
+      if (selection !== mealPhotoSelection.current) return;
       setMealMessage(error instanceof Error ? error.message : 'Food analysis service is unavailable.');
       setIsMealError(true);
     } finally {
@@ -1615,6 +1672,7 @@ export function MemberDashboardPage() {
       if (!user?.id) throw new Error('Please sign in before using the AI Assistant.');
       const response = await fetch(`${API_BASE_URL}/ai-assistant/chat/`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: user.id, message: text }),
       });
@@ -1684,9 +1742,9 @@ export function MemberDashboardPage() {
       return;
     }
 
-    if (!workoutForm.name.trim() || !workoutForm.workoutDate || !workoutForm.durationMinutes || !workoutForm.caloriesBurned) {
+    if (!workoutForm.name.trim() || !workoutForm.workoutDate || !workoutForm.durationMinutes) {
       setIsTrainingError(true);
-      setTrainingMessage('Workout name, date, duration, and calories are required.');
+      setTrainingMessage('Workout name, date, and duration are required.');
       return;
     }
 
@@ -1818,7 +1876,7 @@ export function MemberDashboardPage() {
                   <span className="material-symbols-outlined">local_fire_department</span>
                   Daily Goal
                 </p>
-                <p className="summary-value">{CALORIE_GOAL.toLocaleString()} <small>kcal</small></p>
+                <p className="summary-value">{calorieGoal.toLocaleString()} <small>kcal</small></p>
               </div>
               <div>
                 <p className="summary-label">Consumed</p>
@@ -1833,16 +1891,16 @@ export function MemberDashboardPage() {
             </div>
             <div className="macro-bars">
               <div className="macro-item">
-                <div className="macro-label"><span>PROTEIN</span> <span>{Math.round(nutrition.protein)}g / {PROTEIN_GOAL}g</span></div>
-                <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, PROTEIN_GOAL)}%` }} /></div>
+                <div className="macro-label"><span>PROTEIN</span> <span>{Math.round(nutrition.protein)}g / {proteinGoal}g</span></div>
+                <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, proteinGoal)}%` }} /></div>
               </div>
               <div className="macro-item">
-                <div className="macro-label"><span>CARBS</span> <span>{Math.round(nutrition.carbs)}g / {CARBS_GOAL}g</span></div>
-                <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, CARBS_GOAL)}%` }} /></div>
+                <div className="macro-label"><span>CARBS</span> <span>{Math.round(nutrition.carbs)}g / {carbsGoal}g</span></div>
+                <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, carbsGoal)}%` }} /></div>
               </div>
               <div className="macro-item">
-                <div className="macro-label"><span>FATS</span> <span>{Math.round(nutrition.fats)}g / {FATS_GOAL}g</span></div>
-                <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, FATS_GOAL)}%` }} /></div>
+                <div className="macro-label"><span>FATS</span> <span>{Math.round(nutrition.fats)}g / {fatsGoal}g</span></div>
+                <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, fatsGoal)}%` }} /></div>
               </div>
             </div>
             <div className="meal-log">
@@ -2100,7 +2158,7 @@ export function MemberDashboardPage() {
                             <p>{item.room || 'Studio'} • {item.instructor_name || item.trainer_name || 'Trainer'}</p>
                             <div className="class-slots">
                               <span className="material-symbols-outlined slots-icon">{booked ? 'check_circle' : 'group'}</span>
-                              {booked ? 'Booked' : `${classSlots(item)} spots left`}
+                              {booked ? `Booked · ${classSlots(item)} spots left` : `${classSlots(item)} spots left`}
                             </div>
                           </div>
                         </div>
@@ -2140,7 +2198,7 @@ export function MemberDashboardPage() {
                       <div className="activity-content">
                         <h5>{workout.title || workout.name || 'Workout'}</h5>
                         <p className="stats">
-                          {toNumber(workout.duration_minutes || workout.duration || workout.minutes)} mins • {toNumber(workout.calories || workout.calories_burned)} kcal • {toNumber(workout.exercise_count || workout.exercises_count || workout.exercises?.length)} exercises
+                          {toNumber(workout.duration_minutes || workout.duration || workout.minutes)} mins • {toNumber(workout.calories_burned ?? workout.calories) > 0 ? `${workout.calories_burned ?? workout.calories} kcal` : 'Calories not logged'} • {toNumber(workout.exercise_count || workout.exercises_count || workout.exercises?.length)} exercises
                         </p>
                         <p className="time">{workout.intensity || 'Moderate'} • {formatActivityDate(workoutDate(workout))}</p>
                       </div>
@@ -2252,33 +2310,33 @@ export function MemberDashboardPage() {
               <span className="overview-fuel-icon protein" aria-hidden="true">🥩</span>
               <div>
                 <span className="label">Protein</span>
-                <strong>{Math.round(nutrition.protein)}g <small>/ {PROTEIN_GOAL}g</small></strong>
+                <strong>{Math.round(nutrition.protein)}g <small>/ {proteinGoal}g</small></strong>
               </div>
               <div className="overview-fuel-meter">
-                <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, PROTEIN_GOAL)}%` }} /></div>
-                <span>{pct(nutrition.protein, PROTEIN_GOAL)}% complete</span>
+                <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, proteinGoal)}%` }} /></div>
+                <span>{pct(nutrition.protein, proteinGoal)}% complete</span>
               </div>
             </article>
             <article className="card overview-fuel-card">
               <span className="material-symbols-outlined overview-fuel-icon carbs">bakery_dining</span>
               <div>
                 <span className="label">Carbs</span>
-                <strong>{Math.round(nutrition.carbs)}g <small>/ {CARBS_GOAL}g</small></strong>
+                <strong>{Math.round(nutrition.carbs)}g <small>/ {carbsGoal}g</small></strong>
               </div>
               <div className="overview-fuel-meter">
-                <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, CARBS_GOAL)}%` }} /></div>
-                <span>{pct(nutrition.carbs, CARBS_GOAL)}% complete</span>
+                <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, carbsGoal)}%` }} /></div>
+                <span>{pct(nutrition.carbs, carbsGoal)}% complete</span>
               </div>
             </article>
             <article className="card overview-fuel-card">
               <span className="material-symbols-outlined overview-fuel-icon fats">water_drop</span>
               <div>
                 <span className="label">Fats</span>
-                <strong>{Math.round(nutrition.fats)}g <small>/ {FATS_GOAL}g</small></strong>
+                <strong>{Math.round(nutrition.fats)}g <small>/ {fatsGoal}g</small></strong>
               </div>
               <div className="overview-fuel-meter">
-                <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, FATS_GOAL)}%` }} /></div>
-                <span>{pct(nutrition.fats, FATS_GOAL)}% complete</span>
+                <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, fatsGoal)}%` }} /></div>
+                <span>{pct(nutrition.fats, fatsGoal)}% complete</span>
               </div>
             </article>
           </section>
@@ -2296,7 +2354,7 @@ export function MemberDashboardPage() {
                       <span className="material-symbols-outlined">local_fire_department</span>
                       Daily Goal
                     </p>
-                    <p className="summary-value">{CALORIE_GOAL.toLocaleString()} <small>kcal</small></p>
+                    <p className="summary-value">{calorieGoal.toLocaleString()} <small>kcal</small></p>
                   </div>
                   <div>
                     <p className="summary-label">Consumed</p>
@@ -2312,16 +2370,16 @@ export function MemberDashboardPage() {
 
                 <div className="macro-bars">
                   <div className="macro-item">
-                    <div className="macro-label"><span>PROTEIN</span> <span>{Math.round(nutrition.protein)}g / {PROTEIN_GOAL}g</span></div>
-                    <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, PROTEIN_GOAL)}%` }} /></div>
+                    <div className="macro-label"><span>PROTEIN</span> <span>{Math.round(nutrition.protein)}g / {proteinGoal}g</span></div>
+                    <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, proteinGoal)}%` }} /></div>
                   </div>
                   <div className="macro-item">
-                    <div className="macro-label"><span>CARBS</span> <span>{Math.round(nutrition.carbs)}g / {CARBS_GOAL}g</span></div>
-                    <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, CARBS_GOAL)}%` }} /></div>
+                    <div className="macro-label"><span>CARBS</span> <span>{Math.round(nutrition.carbs)}g / {carbsGoal}g</span></div>
+                    <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, carbsGoal)}%` }} /></div>
                   </div>
                   <div className="macro-item">
-                    <div className="macro-label"><span>FATS</span> <span>{Math.round(nutrition.fats)}g / {FATS_GOAL}g</span></div>
-                    <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, FATS_GOAL)}%` }} /></div>
+                    <div className="macro-label"><span>FATS</span> <span>{Math.round(nutrition.fats)}g / {fatsGoal}g</span></div>
+                    <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, fatsGoal)}%` }} /></div>
                   </div>
                 </div>
 
@@ -2438,7 +2496,7 @@ export function MemberDashboardPage() {
                               <p>{item.room || 'Studio'} • {item.instructor_name || item.trainer_name || 'Trainer'}</p>
                               <div className="class-slots">
                                 <span className="material-symbols-outlined slots-icon">{booked ? 'check_circle' : 'group'}</span>
-                                {booked ? 'Booked' : `${classSlots(item)} spots left`}
+                                {booked ? `Booked · ${classSlots(item)} spots left` : `${classSlots(item)} spots left`}
                               </div>
                             </div>
                           </div>
@@ -2536,8 +2594,8 @@ export function MemberDashboardPage() {
                       </select>
                     </label>
                     <label className="dashboard-field">
-                      <span>Calories Burned</span>
-                      <input name="caloriesBurned" onChange={updateWorkoutField} placeholder="320" type="number" value={workoutForm.caloriesBurned} />
+                      <span>Calories burned (optional)</span>
+                      <input min="0" name="caloriesBurned" onChange={updateWorkoutField} placeholder="From your watch or gym machine" type="number" value={workoutForm.caloriesBurned} />
                     </label>
                   </div>
 
@@ -2599,7 +2657,7 @@ export function MemberDashboardPage() {
                           </div>
                           <div className="history-stats">
                             <span>{toNumber(workout.duration_minutes || workout.duration || workout.minutes)} min</span>
-                            <span>{toNumber(workout.calories_burned || workout.calories)} kcal</span>
+                            <span>{toNumber(workout.calories_burned ?? workout.calories) > 0 ? `${workout.calories_burned ?? workout.calories} kcal` : 'Calories not logged'}</span>
                             <span>{toNumber(workout.exercise_count || workout.exercises_count || workout.exercises?.length)} exercises</span>
                           </div>
                           <div className="history-actions">
@@ -2817,16 +2875,16 @@ export function MemberDashboardPage() {
                   </div>
                   <div className="macro-bars ai-macros">
                     <div className="macro-item">
-                      <div className="macro-label"><span>Protein</span><span>{Math.round(nutrition.protein)}g / {PROTEIN_GOAL}g</span></div>
-                      <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, PROTEIN_GOAL)}%` }} /></div>
+                      <div className="macro-label"><span>Protein</span><span>{Math.round(nutrition.protein)}g / {proteinGoal}g</span></div>
+                      <div className="bar-bg"><div className="bar-fill protein-fill" style={{ width: `${pct(nutrition.protein, proteinGoal)}%` }} /></div>
                     </div>
                     <div className="macro-item">
-                      <div className="macro-label"><span>Carbs</span><span>{Math.round(nutrition.carbs)}g / {CARBS_GOAL}g</span></div>
-                      <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, CARBS_GOAL)}%` }} /></div>
+                      <div className="macro-label"><span>Carbs</span><span>{Math.round(nutrition.carbs)}g / {carbsGoal}g</span></div>
+                      <div className="bar-bg"><div className="bar-fill carbs-fill" style={{ width: `${pct(nutrition.carbs, carbsGoal)}%` }} /></div>
                     </div>
                     <div className="macro-item">
-                      <div className="macro-label"><span>Fats</span><span>{Math.round(nutrition.fats)}g / {FATS_GOAL}g</span></div>
-                      <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, FATS_GOAL)}%` }} /></div>
+                      <div className="macro-label"><span>Fats</span><span>{Math.round(nutrition.fats)}g / {fatsGoal}g</span></div>
+                      <div className="bar-bg"><div className="bar-fill fats-fill" style={{ width: `${pct(nutrition.fats, fatsGoal)}%` }} /></div>
                     </div>
                   </div>
                 </aside>
@@ -2839,6 +2897,11 @@ export function MemberDashboardPage() {
                         <div className="ai-dashboard-bubble">
                           {message.title ? <h3>{message.title}</h3> : null}
                           <p>{message.body}</p>
+                          {message.id === 'intro' && !hasNutritionProfile && (
+                            <button className="btn btn-secondary" onClick={() => openDashboardTab('profile')} type="button">
+                              Set weight goals in Profile
+                            </button>
+                          )}
                           {message.cards?.length ? (
                             <div className="ai-card-grid">
                               {message.cards.map((card) => (
@@ -3070,20 +3133,20 @@ export function MemberDashboardPage() {
                       </select>
                     </label>
                     <label className="dashboard-field">
-                      <span>Weekly Goal (kg)</span>
-                      <input name="weekly_goal" onChange={updateProfileField} step="0.1" type="number" value={profileForm.weekly_goal} />
+                      <span>Weekly Weight Change (kg/week)</span>
+                      <input min="0" name="weekly_goal" onChange={updateProfileField} placeholder="0 to maintain" step="0.01" type="number" value={profileForm.weekly_goal} />
                     </label>
                     <label className="dashboard-field">
                       <span>Starting Weight (kg)</span>
-                      <input min="0" name="starting_weight" onChange={updateProfileField} step="0.1" type="number" value={profileForm.starting_weight} />
+                      <input min="0.01" name="starting_weight" onChange={updateProfileField} placeholder="Weight when you started" step="0.01" type="number" value={profileForm.starting_weight} />
                     </label>
                     <label className="dashboard-field">
                       <span>Current Weight (kg)</span>
-                      <input min="0" name="current_weight" onChange={updateProfileField} step="0.1" type="number" value={profileForm.current_weight} />
+                      <input min="0.01" name="current_weight" onChange={updateProfileField} placeholder="Your latest weight" step="0.01" type="number" value={profileForm.current_weight} />
                     </label>
                     <label className="dashboard-field">
                       <span>Goal Weight (kg)</span>
-                      <input min="0" name="goal_weight" onChange={updateProfileField} step="0.1" type="number" value={profileForm.goal_weight} />
+                      <input min="0.01" name="goal_weight" onChange={updateProfileField} placeholder="Weight you aim to reach" step="0.01" type="number" value={profileForm.goal_weight} />
                     </label>
                   </div>
                 </section>
@@ -3112,7 +3175,7 @@ export function MemberDashboardPage() {
                     <p className="hero-kicker">Nutrition Targets</p>
                     <h3>Daily fuel</h3>
                   </div>
-                  <p className="profile-helper">Suggested from your current weight, training style, weekly sessions, and goal. Edit anytime.</p>
+                  <p className="profile-helper">Enter your current weight to calculate suggested targets. Save your profile to use those targets in AI meal suggestions.</p>
                   <div className="profile-macro-grid">
                     <label className="dashboard-field">
                       <span>Calories</span>

@@ -116,7 +116,7 @@ class WorkoutCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150)
     duration_minutes = serializers.IntegerField(min_value=1)
     intensity = serializers.ChoiceField(choices=['low', 'moderate', 'high'])
-    calories_burned = serializers.IntegerField(min_value=0)
+    calories_burned = serializers.IntegerField(min_value=0, default=0)
     workout_date = serializers.DateTimeField(required=False)
     notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     exercises = WorkoutExerciseInputSerializer(many=True)
