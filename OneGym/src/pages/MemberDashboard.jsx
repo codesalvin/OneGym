@@ -652,6 +652,8 @@ export function MemberDashboardPage() {
   const [personalRecords, setPersonalRecords] = useState([]);
   const [globalLeaderboard, setGlobalLeaderboard] = useState([]);
   const [reviewForm, setReviewForm] = useState({ review_type: 'class', target_id: '', rating: '5', comment: '' });
+  const [reviewData, setReviewData] = useState(null);
+  const [reviewLoadError, setReviewLoadError] = useState('');
   const [reviewMessage, setReviewMessage] = useState('');
   const [isReviewError, setIsReviewError] = useState(false);
   const [isSavingReview, setIsSavingReview] = useState(false);
@@ -1439,9 +1441,55 @@ export function MemberDashboardPage() {
     }
   }
 
+  const loadReviews = useCallback(async (signal) => {
+    setReviewLoadError('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/reviews/?include_eligible=1`, {
+        credentials: 'include', cache: 'no-store', signal,
+      });
+      const data = await parseResponse(response);
+      if (!response.ok || !Array.isArray(data.history) || !Array.isArray(data.eligible_classes)) {
+        throw new Error(data.detail || 'Unable to load class reviews.');
+      }
+      if (!signal?.aborted) setReviewData(data);
+    } catch (error) {
+      if (!signal?.aborted) setReviewLoadError(error.message || 'Unable to load class reviews.');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'classes' || !user?.id) return undefined;
+    const controller = new AbortController();
+    loadReviews(controller.signal);
+    return () => controller.abort();
+  }, [activeTab, loadReviews, user?.id]);
+
+  const eligibleClasses = reviewData?.eligible_classes || [];
+  const reviewHistory = reviewData?.history || [];
+  const reviewTargets = reviewForm.review_type === 'class'
+    ? eligibleClasses.map((item) => ({
+      id: item.class_id,
+      label: `${item.title} · ${formatHistoryDate(item.schedule_time)}`,
+    }))
+    : Array.from(new Map(eligibleClasses.filter((item) => item.trainer_id).map((item) => [
+      item.trainer_id, { id: item.trainer_id, label: item.instructor_name || 'Trainer' },
+    ])).values());
+  const selectedReviewTarget = reviewTargets.find((item) => String(item.id) === reviewForm.target_id);
+  const existingReview = reviewHistory.find((item) => item.review_type === reviewForm.review_type
+    && String(item.target_id) === reviewForm.target_id);
+
+  function selectReviewTarget(targetId) {
+    const previous = reviewHistory.find((item) => item.review_type === reviewForm.review_type
+      && String(item.target_id) === targetId);
+    setReviewForm((current) => ({
+      ...current, target_id: targetId, rating: String(previous?.rating ?? 5), comment: previous?.comment || '',
+    }));
+    setReviewMessage('');
+  }
+
   async function submitReview(event) {
     event.preventDefault();
-    if (!reviewForm.target_id || isSavingReview) return;
+    if (!selectedReviewTarget || isSavingReview) return;
     setIsSavingReview(true);
     setReviewMessage('');
     setIsReviewError(false);
@@ -1455,7 +1503,8 @@ export function MemberDashboardPage() {
       const data = await parseResponse(response);
       if (!response.ok) throw new Error(data.detail || 'Unable to save review.');
       setReviewMessage(data.detail || 'Review saved.');
-      setReviewForm((current) => ({ ...current, rating: '5', comment: '' }));
+      setReviewForm((current) => ({ ...current, target_id: '', rating: '5', comment: '' }));
+      await loadReviews();
     } catch (error) {
       setIsReviewError(true);
       setReviewMessage(error instanceof Error ? error.message : 'Unable to save review.');
@@ -2547,17 +2596,70 @@ export function MemberDashboardPage() {
                 </div>
               </div>
 
-              <form className="card member-review-form" onSubmit={submitReview}>
-                <div className="class-panel-title"><span>Leave a review</span><small>Share your experience</small></div>
-                <div className="member-review-fields">
-                  <label className="dashboard-field"><span>Review</span><select value={reviewForm.review_type} onChange={(event) => setReviewForm((current) => ({ ...current, review_type: event.target.value, target_id: '' }))}><option value="class">Class</option><option value="trainer">Trainer</option></select></label>
-                  <label className="dashboard-field"><span>{reviewForm.review_type === 'class' ? 'Class' : 'Trainer'}</span><select required value={reviewForm.target_id} onChange={(event) => setReviewForm((current) => ({ ...current, target_id: event.target.value }))}><option value="">Choose one</option>{reviewForm.review_type === 'class' ? bookings.map((item) => <option key={item.class_id} value={item.class_id}>{item.title}</option>) : [...new Map(bookings.filter((item) => item.trainer_id).map((item) => [item.trainer_id, item])).values()].map((item) => <option key={item.trainer_id} value={item.trainer_id}>{item.instructor_name || 'Trainer'}</option>)}</select></label>
-                  <label className="dashboard-field"><span>Rating</span><select value={reviewForm.rating} onChange={(event) => setReviewForm((current) => ({ ...current, rating: event.target.value }))}>{[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} star{rating === 1 ? '' : 's'}</option>)}</select></label>
-                </div>
-                <label className="dashboard-field"><span>Comment</span><textarea maxLength="2000" onChange={(event) => setReviewForm((current) => ({ ...current, comment: event.target.value }))} placeholder="What went well?" rows="3" value={reviewForm.comment} /></label>
-                <button className="btn btn-primary" disabled={isSavingReview || !reviewForm.target_id} type="submit">{isSavingReview ? 'Saving…' : 'Submit review'}</button>
-                {reviewMessage ? <p className={`dashboard-message ${isReviewError ? 'error' : 'success'}`}>{reviewMessage}</p> : null}
-              </form>
+              <section className="card member-reviews" aria-labelledby="member-reviews-title">
+                <header className="member-review-heading">
+                  <h2 id="member-reviews-title">Leave a review</h2>
+                  <p>Reviews open after a class ends and your trainer records your attendance.</p>
+                </header>
+                {reviewLoadError ? (
+                  <p className="dashboard-message error" role="alert">{reviewLoadError} <button className="btn btn-secondary" onClick={() => loadReviews()} type="button">Retry</button></p>
+                ) : !reviewData ? <p role="status">Loading reviews…</p> : null}
+                {reviewData && !eligibleClasses.length && !reviewLoadError && <p className="member-review-empty">No classes are ready to review yet.</p>}
+                {eligibleClasses.length > 0 && !reviewLoadError && (
+                  <form className="member-review-form" onSubmit={submitReview}>
+                    <div className="member-review-fields">
+                      <label className="dashboard-field">
+                        <span>Review type</span>
+                        <select value={reviewForm.review_type} onChange={(event) => {
+                          setReviewForm({ review_type: event.target.value, target_id: '', rating: '5', comment: '' });
+                          setReviewMessage('');
+                        }}>
+                          <option value="class">Class</option>
+                          <option value="trainer">Trainer</option>
+                        </select>
+                      </label>
+                      <label className="dashboard-field">
+                        <span>{reviewForm.review_type === 'class' ? 'Completed class' : 'Trainer'}</span>
+                        <select required value={selectedReviewTarget ? reviewForm.target_id : ''} onChange={(event) => selectReviewTarget(event.target.value)}>
+                          <option value="">Choose one</option>
+                          {reviewTargets.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                        </select>
+                      </label>
+                      <label className="dashboard-field">
+                        <span>Rating</span>
+                        <select value={reviewForm.rating} onChange={(event) => setReviewForm((current) => ({ ...current, rating: event.target.value }))}>
+                          {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} star{rating === 1 ? '' : 's'}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <label className="dashboard-field">
+                      <span>Comment (optional)</span>
+                      <textarea maxLength="2000" onChange={(event) => setReviewForm((current) => ({ ...current, comment: event.target.value }))} placeholder="What went well?" rows="3" value={reviewForm.comment} />
+                    </label>
+                    <button className="btn btn-primary" disabled={isSavingReview || !selectedReviewTarget} type="submit">
+                      {isSavingReview ? 'Saving…' : existingReview ? 'Update review' : 'Submit review'}
+                    </button>
+                  </form>
+                )}
+                {reviewMessage && <p className={`dashboard-message ${isReviewError ? 'error' : 'success'}`} role="status">{reviewMessage}</p>}
+                <section className="member-review-history" aria-labelledby="member-review-history-title">
+                  <h3 id="member-review-history-title">Review history</h3>
+                  {reviewHistory.length ? (
+                    <ul>
+                      {reviewHistory.map((item) => (
+                        <li key={`${item.review_type}-${item.id}`}>
+                          <div className="member-review-entry">
+                            <strong>{item.subject}</strong>
+                            <span>{item.rating} / 5</span>
+                          </div>
+                          <small>{item.review_type === 'trainer' ? 'Trainer' : 'Class'} · {formatHistoryDate(item.created_at)}</small>
+                          {item.comment && <p>{item.comment}</p>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : reviewData && !reviewLoadError ? <p className="member-review-empty">You haven’t submitted any reviews yet.</p> : null}
+                </section>
+              </section>
             </section>
           ) : activeTab === 'training' ? (
             <section className="training-tab fade">

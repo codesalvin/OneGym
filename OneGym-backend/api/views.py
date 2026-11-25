@@ -25,7 +25,7 @@ from pathlib import Path
 import re
 import secrets
 
-from .models import PasswordResetCode, Payment, PaymentEvent, SupportTicket, User, UserSubscription
+from .models import ClassReview, PasswordResetCode, Payment, PaymentEvent, SupportTicket, TrainerReview, User, UserSubscription
 from .db_compat import get_last_insert_id
 from .serializers import (
     ClassBookingSerializer,
@@ -1930,12 +1930,54 @@ def leaderboard(request):
     return Response(records)
 
 
+def reviewable_classes(cursor, member_id, class_id=None, trainer_id=None):
+    filters = ['b.user_id = %s']
+    params = [member_id]
+    if class_id is not None:
+        filters.append('c.id = %s')
+        params.append(class_id)
+    if trainer_id is not None:
+        filters.append('c.trainer_id = %s')
+        params.append(trainer_id)
+    cursor.execute(
+        f'''SELECT c.id, c.title, c.schedule_time, COALESCE(c.duration_minutes, 60),
+                   c.trainer_id, COALESCE(t.username, c.instructor_name)
+            FROM class_bookings b
+            JOIN classes c ON c.id = b.class_id
+            JOIN class_attendance a ON a.booking_id = b.id
+            JOIN users marker ON marker.id = a.recorded_by AND LOWER(marker.role) = 'trainer'
+            LEFT JOIN users t ON t.id = c.trainer_id
+            WHERE {' AND '.join(filters)}
+              AND a.attendance_status IN ('attended', 'late')
+              AND COALESCE(b.status, 'booked') = 'booked'
+              AND COALESCE(c.status, 'scheduled') NOT IN ('cancelled', 'canceled')
+            ORDER BY c.schedule_time DESC, c.id DESC''',
+        params,
+    )
+    now = timezone.now()
+    eligible = []
+    for class_id, title, start, minutes, trainer_id, instructor_name in cursor.fetchall():
+        if isinstance(start, str):
+            start = datetime.fromisoformat(start)
+        if timezone.is_naive(start) and timezone.is_aware(now):
+            start = timezone.make_aware(start, timezone.get_default_timezone())
+        if start + timedelta(minutes=minutes if minutes > 0 else 60) <= now:
+            eligible.append({
+                'class_id': class_id,
+                'title': title,
+                'schedule_time': start,
+                'trainer_id': trainer_id,
+                'instructor_name': instructor_name,
+            })
+    return eligible
+
+
 @api_view(['GET', 'POST'])
 def reviews(request):
     actor = get_authenticated_user(request)
     if not actor:
         return Response({'detail': 'Authentication is required.'}, status=status.HTTP_401_UNAUTHORIZED)
-    if actor['role'] not in MEMBER_SUBSCRIPTION_ROLES and actor['role'] not in ['admin', 'owner']:
+    if actor['role'] not in MEMBER_SUBSCRIPTION_ROLES:
         return Response({'detail': 'Only members can submit reviews.'}, status=status.HTTP_403_FORBIDDEN)
 
     if request.method == 'GET':
@@ -1957,7 +1999,13 @@ def reviews(request):
                 [actor['id'], actor['id']],
             )
             columns = [column[0] for column in cursor.description]
-            return Response([dict(zip(columns, row)) for row in cursor.fetchall()])
+            history = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            if request.query_params.get('include_eligible') == '1':
+                return Response(
+                    {'history': history, 'eligible_classes': reviewable_classes(cursor, actor['id'])},
+                    headers={'Cache-Control': 'private, no-store'},
+                )
+            return Response(history, headers={'Cache-Control': 'private, no-store'})
 
     review_type = str(request.data.get('review_type') or '').strip().lower()
     try:
@@ -1971,50 +2019,31 @@ def reviews(request):
 
     with transaction.atomic(), connection.cursor() as cursor:
         if review_type == 'class':
-            cursor.execute(
-                '''SELECT c.id FROM classes c
-                   INNER JOIN class_bookings b ON b.class_id = c.id
-                   WHERE c.id = %s AND b.user_id = %s LIMIT 1''',
-                [target_id, actor['id']],
-            )
-            if not cursor.fetchone():
-                return Response({'detail': 'You can only review a class you booked.'}, status=status.HTTP_403_FORBIDDEN)
-            table, target_column = 'class_reviews', 'class_id'
+            if not reviewable_classes(cursor, actor['id'], class_id=target_id):
+                return Response(
+                    {'detail': 'You can review this class after it ends and a trainer marks you as attended or late.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            review_model, target_field = ClassReview, 'fitness_class_id'
         else:
             cursor.execute("SELECT id FROM users WHERE id = %s AND LOWER(role) = 'trainer' LIMIT 1", [target_id])
             if not cursor.fetchone():
                 return Response({'detail': 'Trainer not found.'}, status=status.HTTP_404_NOT_FOUND)
-            cursor.execute(
-                '''SELECT id FROM class_bookings b INNER JOIN classes c ON c.id = b.class_id
-                   WHERE b.user_id = %s AND c.trainer_id = %s LIMIT 1''',
-                [actor['id'], target_id],
-            )
-            if not cursor.fetchone():
-                return Response({'detail': 'Book a class with this trainer before reviewing them.'}, status=status.HTTP_403_FORBIDDEN)
-            table, target_column = 'trainer_reviews', 'trainer_id'
+            if not reviewable_classes(cursor, actor['id'], trainer_id=target_id):
+                return Response(
+                    {'detail': 'Attend a completed class with this trainer before reviewing them.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            review_model, target_field = TrainerReview, 'trainer_id'
 
-        cursor.execute(
-            f'SELECT id FROM {table} WHERE {target_column} = %s AND reviewer_id = %s LIMIT 1',
-            [target_id, actor['id']],
+        review, created = review_model.objects.update_or_create(
+            reviewer_id=actor['id'],
+            defaults={'rating': rating, 'comment': comment or None},
+            **{target_field: target_id},
         )
-        existing = cursor.fetchone()
-        if existing:
-            cursor.execute(
-                f'UPDATE {table} SET rating = %s, comment = %s WHERE id = %s',
-                [rating, comment or None, existing[0]],
-            )
-            review_id = existing[0]
-            response_status = status.HTTP_200_OK
-        else:
-            cursor.execute(
-                f'''INSERT INTO {table} ({target_column}, reviewer_id, rating, comment, created_at)
-                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)''',
-                [target_id, actor['id'], rating, comment or None],
-            )
-            review_id = get_last_insert_id(cursor)
-            response_status = status.HTTP_201_CREATED
 
-    return Response({'detail': 'Review saved.', 'id': review_id}, status=response_status)
+    response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+    return Response({'detail': 'Review saved.', 'id': review.id}, status=response_status)
 
 
 @api_view(['POST'])
